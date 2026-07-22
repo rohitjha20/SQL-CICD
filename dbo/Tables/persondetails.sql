@@ -1,7 +1,7 @@
-CREATE TABLE [dbo].[EmployeeDummy] (
-    [EmployeeID]   INT             IDENTITY (1, 1) NOT NULL,
-    [EmployeeName] NVARCHAR (100)  NOT NULL,
-    [Department]   NVARCHAR (50)   NULL,
+CREATE TABLE [dbo].[person] (
+    [PersonID]   INT             IDENTITY (1, 1) NOT NULL,
+    [Personname] NVARCHAR (100)  NOT NULL,
+    [Relation]   NVARCHAR (50)   NULL,
     [Salary]       DECIMAL (10, 2) NULL,
     [JoiningDate]  DATE            NULL,
     [EmailID]       NVARCHAR (200) NULL,
@@ -10,4 +10,3 @@ CREATE TABLE [dbo].[EmployeeDummy] (
     PRIMARY KEY CLUSTERED ([EmployeeID] ASC)
 );
 GO
-
