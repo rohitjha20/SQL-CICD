@@ -1,0 +1,40 @@
+name: SQL Database CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build SQL Project
+        run: dotnet build cicd.sqlproj --configuration Release
+
+      - name: Install SqlPackage
+        shell: pwsh
+        run: |
+          dotnet tool install --global microsoft.sqlpackage
+          echo "$env:USERPROFILE\.dotnet\tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Verify DACPAC
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse bin
+
+      - name: Publish DACPAC
+        shell: pwsh
+        run: |
+          SqlPackage `
+            /Action:Publish `
+            /SourceFile:"./bin/Release/cicd.dacpac" `
+            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING }}"

@@ -1,0 +1,9 @@
+{
+    "dataworkspace.excludedProjects": [
+        "free-tier-sql-2026.database.windows.net/free-tier-sql-2026.database.windows.net.sqlproj",
+        "free-tier-sql-2026.database.windows.net/DatabaseProjectcicd-db/DatabaseProjectcicd-db.sqlproj",
+        "CICD/CICD.sqlproj",
+        "EmployeeDummy/EmployeeDummy.sqlproj",
+        "CICD/DatabaseProjectcicd-db/DatabaseProjectcicd-db.sqlproj"
+    ]
+}

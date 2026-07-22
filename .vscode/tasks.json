@@ -1,0 +1,53 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "sqlproj: Build free-tier-sql-2026.database.windows.net",
+			"type": "process",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"/Users/rohitjha/Documents/Git-master/SQL-CICD/free-tier-sql-2026.database.windows.net/free-tier-sql-2026.database.windows.net.sqlproj"
+			],
+			"problemMatcher": "$sqlproj-problem-matcher",
+			"isBackground": true,
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"detail": "Builds the free-tier-sql-2026.database.windows.net SQL project"
+		},
+		{
+			"label": "sqlproj: Build DatabaseProjectcicd-db",
+			"type": "process",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"/Users/rohitjha/Documents/Git-master/SQL-CICD/free-tier-sql-2026.database.windows.net/DatabaseProjectcicd-db/DatabaseProjectcicd-db.sqlproj"
+			],
+			"problemMatcher": "$sqlproj-problem-matcher",
+			"isBackground": true,
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"detail": "Builds the DatabaseProjectcicd-db SQL project"
+		},
+		{
+			"label": "sqlproj: Build CICD",
+			"type": "process",
+			"command": "dotnet",
+			"args": [
+				"build",
+				"/Users/rohitjha/Documents/Git-master/SQL-CICD/CICD/CICD.sqlproj"
+			],
+			"problemMatcher": "$sqlproj-problem-matcher",
+			"isBackground": true,
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"detail": "Builds the CICD SQL project"
+		}
+	]
+}
