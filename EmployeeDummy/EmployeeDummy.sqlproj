@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build">
+  <Sdk Name="Microsoft.Build.Sql" Version="2.2.0" />
+
+  <PropertyGroup>
+    <Name>EmployeeDummy</Name>
+
+    <DSP>Microsoft.Data.Tools.Schema.Sql.SqlAzureV12DatabaseSchemaProvider</DSP>
+
+    <ModelCollation>1033, CI</ModelCollation>
+
+    <ProjectGuid>6400A374-2D33-4463-943C-7FB978E33C7B</ProjectGuid>
+  </PropertyGroup>
+
+</Project>
