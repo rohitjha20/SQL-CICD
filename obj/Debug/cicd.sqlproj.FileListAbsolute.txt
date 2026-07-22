@@ -1,5 +1,0 @@
-/Users/rohitjha/Documents/Git-master/SQL-CICD/cicd/bin/Debug/cicd.dacpac
-/Users/rohitjha/Documents/Git-master/SQL-CICD/cicd/obj/Debug/Model.xml
-/Users/rohitjha/Documents/Git-master/SQL-CICD/cicd/obj/Debug/refactor.xml
-/Users/rohitjha/Documents/Git-master/SQL-CICD/cicd/obj/Debug/postdeploy.sql
-/Users/rohitjha/Documents/Git-master/SQL-CICD/cicd/obj/Debug/predeploy.sql
