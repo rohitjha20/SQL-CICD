@@ -7,6 +7,7 @@ CREATE TABLE [dbo].[person] (
     [EmailID]       NVARCHAR (200) NULL,
     [PhoneNumber]   NVARCHAR (15)  NULL,
     [Address]   NVARCHAR (100)  NULL,
+    [City] NVARCHAR (100)  NULL,
     PRIMARY KEY CLUSTERED ([EmployeeID] ASC)
 );
 GO
