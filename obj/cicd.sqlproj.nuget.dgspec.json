@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "/Users/rohitjha/Documents/Git-master/SQL-CICD/cicd/cicd.sqlproj": {}
+    "/Users/rohitjha/Documents/Git-master/SQL-CICD/cicd.sqlproj": {}
   },
   "projects": {
-    "/Users/rohitjha/Documents/Git-master/SQL-CICD/cicd/cicd.sqlproj": {
+    "/Users/rohitjha/Documents/Git-master/SQL-CICD/cicd.sqlproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/rohitjha/Documents/Git-master/SQL-CICD/cicd/cicd.sqlproj",
+        "projectUniqueName": "/Users/rohitjha/Documents/Git-master/SQL-CICD/cicd.sqlproj",
         "projectName": "cicd",
-        "projectPath": "/Users/rohitjha/Documents/Git-master/SQL-CICD/cicd/cicd.sqlproj",
+        "projectPath": "/Users/rohitjha/Documents/Git-master/SQL-CICD/cicd.sqlproj",
         "packagesPath": "/Users/rohitjha/.nuget/packages/",
-        "outputPath": "/Users/rohitjha/Documents/Git-master/SQL-CICD/cicd/obj/",
+        "outputPath": "/Users/rohitjha/Documents/Git-master/SQL-CICD/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "/Users/rohitjha/.nuget/NuGet/NuGet.Config"

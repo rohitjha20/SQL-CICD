@@ -3,3 +3,8 @@
 /Users/rohitjha/Documents/Git-master/SQL-CICD/cicd/obj/Release/refactor.xml
 /Users/rohitjha/Documents/Git-master/SQL-CICD/cicd/obj/Release/postdeploy.sql
 /Users/rohitjha/Documents/Git-master/SQL-CICD/cicd/obj/Release/predeploy.sql
+/Users/rohitjha/Documents/Git-master/SQL-CICD/bin/Release/cicd.dacpac
+/Users/rohitjha/Documents/Git-master/SQL-CICD/obj/Release/Model.xml
+/Users/rohitjha/Documents/Git-master/SQL-CICD/obj/Release/refactor.xml
+/Users/rohitjha/Documents/Git-master/SQL-CICD/obj/Release/postdeploy.sql
+/Users/rohitjha/Documents/Git-master/SQL-CICD/obj/Release/predeploy.sql
