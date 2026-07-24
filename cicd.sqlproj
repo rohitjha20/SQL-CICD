@@ -17,7 +17,9 @@
     <Build Remove=".github\**\*.sql" />
     <Build Remove="cicd\**\*.sql" />
     <Build Remove="dbo\Tables\PostDeployment\Persondata.sql" />
+    <Build Remove="dbo\Tables\PostDeployment\EmployeeDummy.sql" />
     <PostDeploy Include="dbo\Tables\PostDeployment\Persondata.sql" />
+    <PostDeploy Include="dbo\Tables\PostDeployment\EmployeeDummy.sql" />
   </ItemGroup>
 
   <Target Name="BeforeBuild">
