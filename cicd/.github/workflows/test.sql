@@ -65,4 +65,4 @@ SELECT
     SUSER_SNAME() AS LoginName;
 
 
-drop table dbo.EmployeeDummy;
+drop table dbo.employeeDummy
