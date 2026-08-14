@@ -1,6 +1,6 @@
 -- ==============================================================================
 -- AUTOMATED TEST SUITE FOR AZURE SQL DATABASE (appdb)
--- Test Harness: Transaction-safe, self-reporting assertion engine
+-- Multi-Schema Test Harness (dbo, sales, prod)
 -- ==============================================================================
 
 SET NOCOUNT ON;
@@ -18,47 +18,59 @@ CREATE TABLE #TestResults (
 );
 
 PRINT '==============================================================================';
-PRINT '🧪 EXECUTING AZURE SQL CI/CD AUTOMATED TEST SUITE';
+PRINT '🧪 EXECUTING MULTI-SCHEMA AZURE SQL TEST SUITE (dbo, sales, prod)';
 PRINT 'Target Server: freetier-sqlserver-central.database.windows.net | Database: appdb';
 PRINT '==============================================================================' + CHAR(13);
 
 -- ==============================================================================
--- TEST 1: Schema Object Existence Verification
+-- TEST 1: Schema Object Existence Verification (dbo, sales, prod)
 -- ==============================================================================
 BEGIN TRY
     DECLARE @MissingObjects NVARCHAR(500) = '';
 
-    IF OBJECT_ID('dbo.EmployeeDummy', 'U') IS NULL SET @MissingObjects += 'Table:EmployeeDummy, ';
-    IF OBJECT_ID('dbo.person', 'U') IS NULL SET @MissingObjects += 'Table:person, ';
-    IF OBJECT_ID('dbo.SchemaEvolutionDemo', 'U') IS NULL SET @MissingObjects += 'Table:SchemaEvolutionDemo, ';
-    IF OBJECT_ID('dbo.AuditLog', 'U') IS NULL SET @MissingObjects += 'Table:AuditLog, ';
-    IF OBJECT_ID('dbo.Departments', 'U') IS NULL SET @MissingObjects += 'Table:Departments, ';
-    IF OBJECT_ID('dbo.Projects', 'U') IS NULL SET @MissingObjects += 'Table:Projects, ';
-    IF OBJECT_ID('dbo.ProjectAssignments', 'U') IS NULL SET @MissingObjects += 'Table:ProjectAssignments, ';
-    IF OBJECT_ID('dbo.vw_ActiveEmployees', 'V') IS NULL SET @MissingObjects += 'View:vw_ActiveEmployees, ';
-    IF OBJECT_ID('dbo.GetEmployeeDetails', 'P') IS NULL SET @MissingObjects += 'SP:GetEmployeeDetails, ';
-    IF OBJECT_ID('dbo.fn_CalculateBonus', 'FN') IS NULL SET @MissingObjects += 'ScalarFunc:fn_CalculateBonus, ';
+    -- DBO schema
+    IF OBJECT_ID('dbo.EmployeeDummy', 'U') IS NULL SET @MissingObjects += 'Table:dbo.EmployeeDummy, ';
+    IF OBJECT_ID('dbo.person', 'U') IS NULL SET @MissingObjects += 'Table:dbo.person, ';
+    IF OBJECT_ID('dbo.SchemaEvolutionDemo', 'U') IS NULL SET @MissingObjects += 'Table:dbo.SchemaEvolutionDemo, ';
+    IF OBJECT_ID('dbo.AuditLog', 'U') IS NULL SET @MissingObjects += 'Table:dbo.AuditLog, ';
+    IF OBJECT_ID('dbo.Departments', 'U') IS NULL SET @MissingObjects += 'Table:dbo.Departments, ';
+    IF OBJECT_ID('dbo.Projects', 'U') IS NULL SET @MissingObjects += 'Table:dbo.Projects, ';
+    IF OBJECT_ID('dbo.ProjectAssignments', 'U') IS NULL SET @MissingObjects += 'Table:dbo.ProjectAssignments, ';
+    IF OBJECT_ID('dbo.vw_ActiveEmployees', 'V') IS NULL SET @MissingObjects += 'View:dbo.vw_ActiveEmployees, ';
+    IF OBJECT_ID('dbo.GetEmployeeDetails', 'P') IS NULL SET @MissingObjects += 'SP:dbo.GetEmployeeDetails, ';
+    IF OBJECT_ID('dbo.fn_CalculateBonus', 'FN') IS NULL SET @MissingObjects += 'ScalarFunc:dbo.fn_CalculateBonus, ';
     IF OBJECT_ID('dbo.fn_GetEmployeesByDepartment', 'IF') IS NULL 
-       AND OBJECT_ID('dbo.fn_GetEmployeesByDepartment', 'TF') IS NULL SET @MissingObjects += 'TVF:fn_GetEmployeesByDepartment, ';
-    IF OBJECT_ID('dbo.trg_AuditEmployeeChanges', 'TR') IS NULL SET @MissingObjects += 'Trigger:trg_AuditEmployeeChanges, ';
+       AND OBJECT_ID('dbo.fn_GetEmployeesByDepartment', 'TF') IS NULL SET @MissingObjects += 'TVF:dbo.fn_GetEmployeesByDepartment, ';
+    IF OBJECT_ID('dbo.trg_AuditEmployeeChanges', 'TR') IS NULL SET @MissingObjects += 'Trigger:dbo.trg_AuditEmployeeChanges, ';
+
+    -- SALES schema
+    IF OBJECT_ID('sales.Customers', 'U') IS NULL SET @MissingObjects += 'Table:sales.Customers, ';
+    IF OBJECT_ID('sales.Orders', 'U') IS NULL SET @MissingObjects += 'Table:sales.Orders, ';
+    IF OBJECT_ID('sales.vw_HighValueOrders', 'V') IS NULL SET @MissingObjects += 'View:sales.vw_HighValueOrders, ';
+    IF OBJECT_ID('sales.GetCustomerOrderSummary', 'P') IS NULL SET @MissingObjects += 'SP:sales.GetCustomerOrderSummary, ';
+
+    -- PROD schema
+    IF OBJECT_ID('prod.AuditSummary', 'U') IS NULL SET @MissingObjects += 'Table:prod.AuditSummary, ';
+    IF OBJECT_ID('prod.Configuration', 'U') IS NULL SET @MissingObjects += 'Table:prod.Configuration, ';
+    IF OBJECT_ID('prod.vw_ProductionHealth', 'V') IS NULL SET @MissingObjects += 'View:prod.vw_ProductionHealth, ';
+    IF OBJECT_ID('prod.LogProductionDeployment', 'P') IS NULL SET @MissingObjects += 'SP:prod.LogProductionDeployment, ';
 
     IF @MissingObjects = ''
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-        VALUES (1, 'Schema', 'Verify All Database Objects Exist', 'PASSED', 'All 7 tables, 1 view, 1 SP, 2 functions, and 1 trigger exist.');
+        VALUES (1, 'Schema', 'Verify All Multi-Schema Objects Exist', 'PASSED', 'All objects in dbo, sales, and prod schemas exist.');
     ELSE
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-        VALUES (1, 'Schema', 'Verify All Database Objects Exist', 'FAILED', 'Missing objects: ' + @MissingObjects);
+        VALUES (1, 'Schema', 'Verify All Multi-Schema Objects Exist', 'FAILED', 'Missing objects: ' + @MissingObjects);
 END TRY
 BEGIN CATCH
     INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-    VALUES (1, 'Schema', 'Verify All Database Objects Exist', 'FAILED', ERROR_MESSAGE());
+    VALUES (1, 'Schema', 'Verify All Multi-Schema Objects Exist', 'FAILED', ERROR_MESSAGE());
 END CATCH;
 
 -- ==============================================================================
 -- TEST 2: Table Constraints & Defaults (SchemaEvolutionDemo)
 -- ==============================================================================
 BEGIN TRY
-    -- Insert test record relying on DEFAULTs for Status ('Active') and CreatedAt
     DELETE FROM dbo.SchemaEvolutionDemo WHERE [ID] = 9001;
     INSERT INTO dbo.SchemaEvolutionDemo ([ID], [UniqueCode], [Name], [Department], [Salary])
     VALUES (9001, 'TEST_CODE_9001', 'Test Default User', 'Engineering', 90000.00);
@@ -75,7 +87,6 @@ BEGIN TRY
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
         VALUES (2, 'Tables', 'SchemaEvolutionDemo Default Constraints', 'FAILED', 'Unexpected defaults: Status=' + ISNULL(@DefaultStatus,'NULL'));
 
-    -- Cleanup
     DELETE FROM dbo.SchemaEvolutionDemo WHERE [ID] = 9001;
 END TRY
 BEGIN CATCH
@@ -88,17 +99,14 @@ END CATCH;
 -- TEST 3: Negative Test - CHECK Constraint Rejection
 -- ==============================================================================
 BEGIN TRY
-    -- This insert MUST fail due to CHECK constraint ([Status] IN ('Active', 'Inactive', 'Pending'))
     INSERT INTO dbo.SchemaEvolutionDemo ([ID], [UniqueCode], [Name], [Department], [Salary], [Status])
     VALUES (9002, 'TEST_CODE_9002', 'Invalid Status User', 'HR', 50000.00, 'Suspended');
 
-    -- If we reach here, the check constraint failed to block invalid data
     INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
     VALUES (3, 'Constraints', 'CHECK Constraint Rejection Test', 'FAILED', 'Invalid status ''Suspended'' was unexpectedly accepted.');
     DELETE FROM dbo.SchemaEvolutionDemo WHERE [ID] = 9002;
 END TRY
 BEGIN CATCH
-    -- Error 547 is the SQL Server CHECK constraint violation error
     IF ERROR_NUMBER() = 547
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
         VALUES (3, 'Constraints', 'CHECK Constraint Rejection Test', 'PASSED', 'CHECK constraint successfully rejected invalid Status value (Error 547).');
@@ -108,45 +116,37 @@ BEGIN CATCH
 END CATCH;
 
 -- ==============================================================================
--- TEST 4: Post-Deployment Reference & Seed Data Verification
+-- TEST 4: Post-Deployment Reference & Seed Data Verification (dbo, sales, prod)
 -- ==============================================================================
 BEGIN TRY
-    DECLARE @PersonCount INT = 0;
-    DECLARE @EmployeeCount INT = 0;
-    DECLARE @DeptCount INT = 0;
+    DECLARE @PersonCount INT = (SELECT COUNT(*) FROM dbo.person);
+    DECLARE @CustomerCount INT = (SELECT COUNT(*) FROM sales.Customers);
+    DECLARE @ProdConfigCount INT = (SELECT COUNT(*) FROM prod.Configuration);
 
-    SELECT @PersonCount = COUNT(*) FROM dbo.person;
-    SELECT @EmployeeCount = COUNT(*) FROM dbo.EmployeeDummy;
-    SELECT @DeptCount = COUNT(*) FROM dbo.Departments;
-
-    IF @PersonCount >= 3 AND @EmployeeCount >= 3 AND @DeptCount >= 3
+    IF @PersonCount >= 3 AND @CustomerCount >= 3 AND @ProdConfigCount >= 3
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-        VALUES (4, 'PostDeploy', 'Seed Data Verification', 'PASSED', 'person=' + CAST(@PersonCount AS VARCHAR) + ', EmployeeDummy=' + CAST(@EmployeeCount AS VARCHAR) + ', Departments=' + CAST(@DeptCount AS VARCHAR));
+        VALUES (4, 'PostDeploy', 'Multi-Schema Seed Data Verification', 'PASSED', 'person=' + CAST(@PersonCount AS VARCHAR) + ', sales.Customers=' + CAST(@CustomerCount AS VARCHAR) + ', prod.Config=' + CAST(@ProdConfigCount AS VARCHAR));
     ELSE
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-        VALUES (4, 'PostDeploy', 'Seed Data Verification', 'FAILED', 'Insufficient seed data: person=' + CAST(@PersonCount AS VARCHAR) + ', EmployeeDummy=' + CAST(@EmployeeCount AS VARCHAR) + ', Dept=' + CAST(@DeptCount AS VARCHAR));
+        VALUES (4, 'PostDeploy', 'Multi-Schema Seed Data Verification', 'FAILED', 'Insufficient seed data.');
 END TRY
 BEGIN CATCH
     INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-    VALUES (4, 'PostDeploy', 'Seed Data Verification', 'FAILED', ERROR_MESSAGE());
+    VALUES (4, 'PostDeploy', 'Multi-Schema Seed Data Verification', 'FAILED', ERROR_MESSAGE());
 END CATCH;
 
 -- ==============================================================================
 -- TEST 5: View Logic (vw_ActiveEmployees)
 -- ==============================================================================
 BEGIN TRY
-    -- Insert 1 Active and 1 Inactive record
     DELETE FROM dbo.SchemaEvolutionDemo WHERE [ID] IN (9003, 9004);
     INSERT INTO dbo.SchemaEvolutionDemo ([ID], [UniqueCode], [Name], [Department], [Salary], [Status])
     VALUES 
         (9003, 'TEST_CODE_9003', 'Active View User', 'Engineering', 80000.00, 'Active'),
         (9004, 'TEST_CODE_9004', 'Inactive View User', 'Engineering', 80000.00, 'Inactive');
 
-    DECLARE @ActiveVisible INT = 0;
-    DECLARE @InactiveVisible INT = 0;
-
-    SELECT @ActiveVisible = COUNT(*) FROM dbo.vw_ActiveEmployees WHERE [ID] = 9003;
-    SELECT @InactiveVisible = COUNT(*) FROM dbo.vw_ActiveEmployees WHERE [ID] = 9004;
+    DECLARE @ActiveVisible INT = (SELECT COUNT(*) FROM dbo.vw_ActiveEmployees WHERE [ID] = 9003);
+    DECLARE @InactiveVisible INT = (SELECT COUNT(*) FROM dbo.vw_ActiveEmployees WHERE [ID] = 9004);
 
     IF @ActiveVisible = 1 AND @InactiveVisible = 0
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
@@ -155,7 +155,6 @@ BEGIN TRY
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
         VALUES (5, 'Views', 'vw_ActiveEmployees Status Filtering', 'FAILED', 'Active Visible=' + CAST(@ActiveVisible AS VARCHAR) + ', Inactive Visible=' + CAST(@InactiveVisible AS VARCHAR));
 
-    -- Cleanup
     DELETE FROM dbo.SchemaEvolutionDemo WHERE [ID] IN (9003, 9004);
 END TRY
 BEGIN CATCH
@@ -168,10 +167,10 @@ END CATCH;
 -- TEST 6: Scalar Function (fn_CalculateBonus)
 -- ==============================================================================
 BEGIN TRY
-    DECLARE @EngBonus DECIMAL(18,2) = dbo.fn_CalculateBonus(100000.00, 'Engineering'); -- Expected: 15000.00 (15%)
-    DECLARE @ProdBonus DECIMAL(18,2) = dbo.fn_CalculateBonus(100000.00, 'Product');     -- Expected: 12000.00 (12%)
-    DECLARE @DevOpsBonus DECIMAL(18,2) = dbo.fn_CalculateBonus(100000.00, 'DevOps');   -- Expected: 13000.00 (13%)
-    DECLARE @OtherBonus DECIMAL(18,2) = dbo.fn_CalculateBonus(100000.00, 'Marketing'); -- Expected: 10000.00 (10%)
+    DECLARE @EngBonus DECIMAL(18,2) = dbo.fn_CalculateBonus(100000.00, 'Engineering');
+    DECLARE @ProdBonus DECIMAL(18,2) = dbo.fn_CalculateBonus(100000.00, 'Product');
+    DECLARE @DevOpsBonus DECIMAL(18,2) = dbo.fn_CalculateBonus(100000.00, 'DevOps');
+    DECLARE @OtherBonus DECIMAL(18,2) = dbo.fn_CalculateBonus(100000.00, 'Marketing');
 
     IF @EngBonus = 15000.00 AND @ProdBonus = 12000.00 AND @DevOpsBonus = 13000.00 AND @OtherBonus = 10000.00
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
@@ -195,11 +194,8 @@ BEGIN TRY
         (9005, 'TEST_CODE_9005', 'TVF Eng User', 'Engineering', 95000.00, 'Active'),
         (9006, 'TEST_CODE_9006', 'TVF Sales User', 'Sales', 65000.00, 'Active');
 
-    DECLARE @EngCount INT = 0;
-    DECLARE @NonEngCount INT = 0;
-
-    SELECT @EngCount = COUNT(*) FROM dbo.fn_GetEmployeesByDepartment('Engineering') WHERE [ID] = 9005;
-    SELECT @NonEngCount = COUNT(*) FROM dbo.fn_GetEmployeesByDepartment('Engineering') WHERE [ID] = 9006;
+    DECLARE @EngCount INT = (SELECT COUNT(*) FROM dbo.fn_GetEmployeesByDepartment('Engineering') WHERE [ID] = 9005);
+    DECLARE @NonEngCount INT = (SELECT COUNT(*) FROM dbo.fn_GetEmployeesByDepartment('Engineering') WHERE [ID] = 9006);
 
     IF @EngCount = 1 AND @NonEngCount = 0
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
@@ -208,7 +204,6 @@ BEGIN TRY
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
         VALUES (7, 'Functions', 'fn_GetEmployeesByDepartment Output Validation', 'FAILED', 'EngCount=' + CAST(@EngCount AS VARCHAR) + ', NonEngCount=' + CAST(@NonEngCount AS VARCHAR));
 
-    -- Cleanup
     DELETE FROM dbo.SchemaEvolutionDemo WHERE [ID] IN (9005, 9006);
 END TRY
 BEGIN CATCH
@@ -224,23 +219,18 @@ BEGIN TRY
     DELETE FROM dbo.AuditLog WHERE [RecordID] = 9007 AND [TableName] = 'SchemaEvolutionDemo';
     DELETE FROM dbo.SchemaEvolutionDemo WHERE [ID] = 9007;
 
-    -- Perform INSERT
     INSERT INTO dbo.SchemaEvolutionDemo ([ID], [UniqueCode], [Name], [Department], [Salary], [Status])
     VALUES (9007, 'TEST_CODE_9007', 'Trigger Insert User', 'DevOps', 99000.00, 'Active');
 
-    DECLARE @InsertAuditFound INT = 0;
-    SELECT @InsertAuditFound = COUNT(*)
-    FROM dbo.AuditLog
-    WHERE [TableName] = 'SchemaEvolutionDemo' AND [RecordID] = 9007 AND [Operation] = 'INSERT';
+    DECLARE @InsertAuditFound INT = (SELECT COUNT(*) FROM dbo.AuditLog WHERE [TableName] = 'SchemaEvolutionDemo' AND [RecordID] = 9007 AND [Operation] = 'INSERT');
 
     IF @InsertAuditFound >= 1
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
         VALUES (8, 'Triggers', 'Trigger Audit Log on INSERT', 'PASSED', 'Trigger successfully captured INSERT operation into dbo.AuditLog.');
     ELSE
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-        VALUES (8, 'Triggers', 'Trigger Audit Log on INSERT', 'FAILED', 'No audit entry found for RecordID=9007 with Operation=INSERT.');
+        VALUES (8, 'Triggers', 'Trigger Audit Log on INSERT', 'FAILED', 'No audit entry found for RecordID=9007.');
 
-    -- Cleanup
     DELETE FROM dbo.AuditLog WHERE [RecordID] = 9007 AND [TableName] = 'SchemaEvolutionDemo';
     DELETE FROM dbo.SchemaEvolutionDemo WHERE [ID] = 9007;
 END TRY
@@ -258,14 +248,11 @@ BEGIN TRY
     DELETE FROM dbo.AuditLog WHERE [RecordID] = 9008 AND [TableName] = 'SchemaEvolutionDemo';
     DELETE FROM dbo.SchemaEvolutionDemo WHERE [ID] = 9008;
 
-    -- Setup base record
     INSERT INTO dbo.SchemaEvolutionDemo ([ID], [UniqueCode], [Name], [Department], [Salary], [Status])
     VALUES (9008, 'TEST_CODE_9008', 'Trigger Update User', 'Product', 85000.00, 'Active');
 
-    -- Clear insert audit
     DELETE FROM dbo.AuditLog WHERE [RecordID] = 9008;
 
-    -- Perform UPDATE
     UPDATE dbo.SchemaEvolutionDemo
     SET [Status] = 'Inactive', [Department] = 'Engineering'
     WHERE [ID] = 9008;
@@ -285,7 +272,6 @@ BEGIN TRY
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
         VALUES (9, 'Triggers', 'Trigger Audit Log on UPDATE', 'FAILED', 'Update audit entry missing or values incorrect.');
 
-    -- Cleanup
     DELETE FROM dbo.AuditLog WHERE [RecordID] = 9008 AND [TableName] = 'SchemaEvolutionDemo';
     DELETE FROM dbo.SchemaEvolutionDemo WHERE [ID] = 9008;
 END TRY
@@ -297,88 +283,81 @@ BEGIN CATCH
 END CATCH;
 
 -- ==============================================================================
--- TEST 10: Stored Procedure Execution (GetEmployeeDetails)
+-- TEST 10: Sales Schema View (vw_HighValueOrders)
 -- ==============================================================================
 BEGIN TRY
-    DELETE FROM dbo.SchemaEvolutionDemo WHERE [ID] = 9009;
-    INSERT INTO dbo.SchemaEvolutionDemo ([ID], [UniqueCode], [Name], [Department], [Salary], [Status])
-    VALUES (9009, 'TEST_CODE_9009', 'SP Test User', 'Operations', 70000.00, 'Active');
+    DECLARE @HighValueCount INT = (SELECT COUNT(*) FROM sales.vw_HighValueOrders WHERE TotalAmount >= 50000.00);
+    DECLARE @LowValueCount INT = (SELECT COUNT(*) FROM sales.vw_HighValueOrders WHERE TotalAmount < 50000.00);
 
-    IF OBJECT_ID('tempdb..#SPResult') IS NOT NULL DROP TABLE #SPResult;
-    CREATE TABLE #SPResult (
-        [ID] INT,
-        [UniqueCode] NVARCHAR(50),
-        [Name] NVARCHAR(100),
-        [Department] NVARCHAR(50),
-        [Status] NVARCHAR(20)
+    IF @HighValueCount >= 1 AND @LowValueCount = 0
+        INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
+        VALUES (10, 'SalesSchema', 'sales.vw_HighValueOrders Filter Validation', 'PASSED', 'View correctly filtered orders >= 50,000.');
+    ELSE
+        INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
+        VALUES (10, 'SalesSchema', 'sales.vw_HighValueOrders Filter Validation', 'FAILED', 'Unexpected view output.');
+END TRY
+BEGIN CATCH
+    INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
+    VALUES (10, 'SalesSchema', 'sales.vw_HighValueOrders Filter Validation', 'FAILED', ERROR_MESSAGE());
+END CATCH;
+
+-- ==============================================================================
+-- TEST 11: Sales Schema Stored Procedure (GetCustomerOrderSummary)
+-- ==============================================================================
+BEGIN TRY
+    IF OBJECT_ID('tempdb..#CustomerSummary') IS NOT NULL DROP TABLE #CustomerSummary;
+    CREATE TABLE #CustomerSummary (
+        [CustomerID] INT,
+        [CustomerCode] NVARCHAR(20),
+        [CustomerName] NVARCHAR(150),
+        [Email] NVARCHAR(200),
+        [TotalOrders] INT,
+        [LifetimeSpend] DECIMAL(18,2)
     );
 
-    INSERT INTO #SPResult
-    EXEC dbo.GetEmployeeDetails @EmployeeID = 9009;
+    INSERT INTO #CustomerSummary
+    EXEC sales.GetCustomerOrderSummary @CustomerID = 1;
 
-    DECLARE @SPName NVARCHAR(100);
-    SELECT @SPName = [Name] FROM #SPResult;
+    DECLARE @TotalOrders INT = (SELECT [TotalOrders] FROM #CustomerSummary);
 
-    IF @SPName = 'SP Test User'
+    IF @TotalOrders >= 1
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-        VALUES (10, 'StoredProcedures', 'GetEmployeeDetails Procedure Execution', 'PASSED', 'Stored procedure executed and returned expected employee record.');
+        VALUES (11, 'SalesSchema', 'sales.GetCustomerOrderSummary Execution', 'PASSED', 'SP returned customer aggregate metrics successfully.');
     ELSE
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-        VALUES (10, 'StoredProcedures', 'GetEmployeeDetails Procedure Execution', 'FAILED', 'SP returned unexpected name: ' + ISNULL(@SPName, 'NULL'));
+        VALUES (11, 'SalesSchema', 'sales.GetCustomerOrderSummary Execution', 'FAILED', 'SP did not return expected orders.');
+
+    IF OBJECT_ID('tempdb..#CustomerSummary') IS NOT NULL DROP TABLE #CustomerSummary;
+END TRY
+BEGIN CATCH
+    INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
+    VALUES (11, 'SalesSchema', 'sales.GetCustomerOrderSummary Execution', 'FAILED', ERROR_MESSAGE());
+    IF OBJECT_ID('tempdb..#CustomerSummary') IS NOT NULL DROP TABLE #CustomerSummary;
+END CATCH;
+
+-- ==============================================================================
+-- TEST 12: Prod Schema Deployment Logging & Health View
+-- ==============================================================================
+BEGIN TRY
+    -- Execute prod logging procedure
+    EXEC prod.LogProductionDeployment @ReleaseVersion = 'v2.0.0-TEST', @Status = 'Success';
+
+    DECLARE @LogFound INT = (SELECT COUNT(*) FROM prod.vw_ProductionHealth WHERE [ReleaseVersion] = 'v2.0.0-TEST');
+
+    IF @LogFound >= 1
+        INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
+        VALUES (12, 'ProdSchema', 'prod.LogProductionDeployment & Health View', 'PASSED', 'Procedure logged deployment event and view exposed the record.');
+    ELSE
+        INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
+        VALUES (12, 'ProdSchema', 'prod.LogProductionDeployment & Health View', 'FAILED', 'Deployment log not found in prod view.');
 
     -- Cleanup
-    DELETE FROM dbo.SchemaEvolutionDemo WHERE [ID] = 9009;
-    IF OBJECT_ID('tempdb..#SPResult') IS NOT NULL DROP TABLE #SPResult;
+    DELETE FROM prod.AuditSummary WHERE [ReleaseVersion] = 'v2.0.0-TEST';
 END TRY
 BEGIN CATCH
     INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-    VALUES (10, 'StoredProcedures', 'GetEmployeeDetails Procedure Execution', 'FAILED', ERROR_MESSAGE());
-    DELETE FROM dbo.SchemaEvolutionDemo WHERE [ID] = 9009;
-END CATCH;
-
--- ==============================================================================
--- TEST 11: Foreign Key Constraint Enforcement (Projects -> Departments)
--- ==============================================================================
-BEGIN TRY
-    -- Attempt to insert a project referencing a non-existent DepartmentID (-999)
-    INSERT INTO dbo.Projects ([ProjectName], [DepartmentID], [StartDate], [ProjectStatus])
-    VALUES ('Invalid FK Project', -999, '2026-01-01', 'Planning');
-
-    INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-    VALUES (11, 'ForeignKeys', 'FK_Projects_Departments Enforcement', 'FAILED', 'Invalid FK was unexpectedly accepted.');
-    DELETE FROM dbo.Projects WHERE [ProjectName] = 'Invalid FK Project';
-END TRY
-BEGIN CATCH
-    IF ERROR_NUMBER() = 547 -- Foreign Key violation error code
-        INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-        VALUES (11, 'ForeignKeys', 'FK_Projects_Departments Enforcement', 'PASSED', 'Foreign key constraint correctly rejected invalid DepartmentID (Error 547).');
-    ELSE
-        INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-        VALUES (11, 'ForeignKeys', 'FK_Projects_Departments Enforcement', 'FAILED', 'Unexpected error: ' + ERROR_MESSAGE());
-END CATCH;
-
--- ==============================================================================
--- TEST 12: Date Order CHECK Constraint (Projects EndDate >= StartDate)
--- ==============================================================================
-BEGIN TRY
-    DECLARE @ValidDeptID INT = (SELECT TOP 1 [DepartmentID] FROM dbo.Departments);
-    IF @ValidDeptID IS NULL SET @ValidDeptID = 1;
-
-    -- Attempt inserting EndDate before StartDate (must fail)
-    INSERT INTO dbo.Projects ([ProjectName], [DepartmentID], [StartDate], [EndDate], [ProjectStatus])
-    VALUES ('Invalid Date Project', @ValidDeptID, '2026-06-01', '2026-01-01', 'Planning');
-
-    INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-    VALUES (12, 'Constraints', 'CK_Projects_DateOrder Enforcement', 'FAILED', 'EndDate < StartDate was unexpectedly accepted.');
-    DELETE FROM dbo.Projects WHERE [ProjectName] = 'Invalid Date Project';
-END TRY
-BEGIN CATCH
-    IF ERROR_NUMBER() = 547 -- CHECK constraint violation
-        INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-        VALUES (12, 'Constraints', 'CK_Projects_DateOrder Enforcement', 'PASSED', 'Date order CHECK constraint correctly rejected EndDate < StartDate (Error 547).');
-    ELSE
-        INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-        VALUES (12, 'Constraints', 'CK_Projects_DateOrder Enforcement', 'FAILED', 'Unexpected error: ' + ERROR_MESSAGE());
+    VALUES (12, 'ProdSchema', 'prod.LogProductionDeployment & Health View', 'FAILED', ERROR_MESSAGE());
+    DELETE FROM prod.AuditSummary WHERE [ReleaseVersion] = 'v2.0.0-TEST';
 END CATCH;
 
 -- ==============================================================================

@@ -1,4 +1,4 @@
-name: SQL Database CI/CD
+name: SQL Database CI/CD — Dev to Prod Promotion
 
 on:
   push:
@@ -7,7 +7,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  # ─── 1. BUILD & PACKAGE ARTIFACT ──────────────────────────────
+  build:
+    name: 🔨 Build DACPAC Artifact
     runs-on: ubuntu-latest
 
     steps:
@@ -56,21 +58,61 @@ jobs:
       - name: Build SQL Project (Compile DACPAC)
         run: dotnet build cicd.sqlproj --configuration Release
 
+      - name: 📦 Upload DACPAC as Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sql-dacpac-artifact
+          path: bin/Release/cicd.dacpac
+          retention-days: 30
+
+  # ─── 2. DEPLOY TO DEV ─────────────────────────────────────────
+  deploy-dev:
+    name: 🟢 Deploy to Dev
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Download DACPAC Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sql-dacpac-artifact
+
       - name: Install SqlPackage
         run: |
           dotnet tool install --global microsoft.sqlpackage
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
-      - name: Verify DACPAC Artifact
-        run: |
-          ls -la bin/Release/
-
-      - name: Publish DACPAC to Azure SQL (appdb)
+      - name: Publish DACPAC to Dev Database
         run: |
           sqlpackage \
             /Action:Publish \
-            /SourceFile:"./bin/Release/cicd.dacpac" \
-            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING }}" \
+            /SourceFile:"./cicd.dacpac" \
+            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING_DEV || secrets.SQL_CONNECTION_STRING }}" \
+            /p:BlockOnPossibleDataLoss=False \
+            /p:GenerateSmartDefaults=True \
+            /p:DropObjectsNotInSource=True
+
+  # ─── 3. PROMOTE TO PROD ───────────────────────────────────────
+  deploy-prod:
+    name: 🔴 Promote to Production
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Download EXACT DACPAC from Build
+        uses: actions/download-artifact@v4
+        with:
+          name: sql-dacpac-artifact
+
+      - name: Install SqlPackage
+        run: |
+          dotnet tool install --global microsoft.sqlpackage
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Publish DACPAC to Production Database
+        run: |
+          sqlpackage \
+            /Action:Publish \
+            /SourceFile:"./cicd.dacpac" \
+            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING_PROD || secrets.SQL_CONNECTION_STRING }}" \
             /p:BlockOnPossibleDataLoss=False \
             /p:GenerateSmartDefaults=True \
             /p:DropObjectsNotInSource=True

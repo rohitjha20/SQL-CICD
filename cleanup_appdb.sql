@@ -1,6 +1,7 @@
 -- ==============================================================================
 -- CLEANUP SCRIPT: Reset / Drop all objects in Azure SQL Database (appdb)
 -- Target: freetier-sqlserver-central.database.windows.net / appdb
+-- Multi-Schema: dbo, sales, prod
 -- ==============================================================================
 
 PRINT 'Starting cleanup of appdb database objects...';
@@ -14,6 +15,13 @@ END
 GO
 
 -- 2. Drop Views
+IF OBJECT_ID('prod.vw_ProductionHealth', 'V') IS NOT NULL
+BEGIN
+    DROP VIEW [prod].[vw_ProductionHealth];
+    PRINT 'Dropped VIEW: prod.vw_ProductionHealth';
+END
+GO
+
 IF OBJECT_ID('sales.vw_HighValueOrders', 'V') IS NOT NULL
 BEGIN
     DROP VIEW [sales].[vw_HighValueOrders];
@@ -29,6 +37,13 @@ END
 GO
 
 -- 3. Drop Stored Procedures
+IF OBJECT_ID('prod.LogProductionDeployment', 'P') IS NOT NULL
+BEGIN
+    DROP PROCEDURE [prod].[LogProductionDeployment];
+    PRINT 'Dropped PROCEDURE: prod.LogProductionDeployment';
+END
+GO
+
 IF OBJECT_ID('sales.GetCustomerOrderSummary', 'P') IS NOT NULL
 BEGIN
     DROP PROCEDURE [sales].[GetCustomerOrderSummary];
@@ -72,6 +87,20 @@ END
 GO
 
 -- 6. Drop Tables
+IF OBJECT_ID('prod.AuditSummary', 'U') IS NOT NULL
+BEGIN
+    DROP TABLE [prod].[AuditSummary];
+    PRINT 'Dropped TABLE: prod.AuditSummary';
+END
+GO
+
+IF OBJECT_ID('prod.Configuration', 'U') IS NOT NULL
+BEGIN
+    DROP TABLE [prod].[Configuration];
+    PRINT 'Dropped TABLE: prod.Configuration';
+END
+GO
+
 IF OBJECT_ID('sales.Orders', 'U') IS NOT NULL
 BEGIN
     DROP TABLE [sales].[Orders];
@@ -136,6 +165,13 @@ END
 GO
 
 -- 7. Drop Schemas
+IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'prod')
+BEGIN
+    DROP SCHEMA [prod];
+    PRINT 'Dropped SCHEMA: prod';
+END
+GO
+
 IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'sales')
 BEGIN
     DROP SCHEMA [sales];
@@ -144,6 +180,6 @@ END
 GO
 
 PRINT '==============================================================================';
-PRINT 'Cleanup complete! appdb is now reset.';
+PRINT 'Cleanup complete! appdb is now reset across all schemas (dbo, sales, prod).';
 PRINT '==============================================================================';
 GO
