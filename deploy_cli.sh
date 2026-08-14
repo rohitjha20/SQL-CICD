@@ -53,6 +53,7 @@ sqlpackage \
   /Action:Publish \
   /SourceFile:"./bin/Release/cicd.dacpac" \
   /TargetConnectionString:"$SQL_CONNECTION_STRING" \
-  /p:BlockOnPossibleDataLoss=False
+  /p:BlockOnPossibleDataLoss=False \
+  /p:GenerateSmartDefaults=True
 
 echo "✅ Successfully deployed all database components to Azure SQL!"
