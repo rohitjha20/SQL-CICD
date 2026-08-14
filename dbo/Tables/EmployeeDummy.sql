@@ -3,11 +3,9 @@ CREATE TABLE [dbo].[EmployeeDummy] (
     [EmployeeName] NVARCHAR (100)  NOT NULL,
     [Department]   NVARCHAR (50)   NULL,
     [Salary]       DECIMAL (10, 2) NULL,
-    [JoiningDate]  DATE            NULL,
-    [EmailID]       NVARCHAR (200) NULL,
-    [PhoneNumber]   NVARCHAR (15)  NULL,
-    [Address]   NVARCHAR (100)  NULL,
+    [EmailID]      NVARCHAR (200)  NULL,
+    [PhoneNumber]  NVARCHAR (15)   NULL,
+    [Address]      NVARCHAR (100)  NULL,
     PRIMARY KEY CLUSTERED ([EmployeeID] ASC)
 );
 GO
-
