@@ -24,6 +24,7 @@ cat << 'EOF' > cicd.sqlproj
     <Build Remove="cicd/**/*.sql" />
     <Build Remove="PostDeployment/**/*.sql" />
     <Build Remove="cleanup_appdb.sql" />
+    <Build Remove="tests/**/*.sql" />
     <PostDeploy Include="PostDeployment/PostDeployment.sql" />
   </ItemGroup>
   <Target Name="BeforeBuild">
