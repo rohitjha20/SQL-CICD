@@ -1,3 +1,3 @@
-:r .\EmployeeDummy.sql
-:r .\PersonData.sql
-:r .\AuditLogSeed.sql
+:r ./Employeedummy.sql
+:r ./Persondata.sql
+:r ./AuditLogSeed.sql

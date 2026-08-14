@@ -14,10 +14,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Build Remove=".github\**\*.sql" />
-    <Build Remove="cicd\**\*.sql" />
-    <Build Remove="PostDeployment\**\*.sql" />
-    <PostDeploy Include="PostDeployment\PostDeployment.sql" />
+    <Build Remove=".github/**/*.sql" />
+    <Build Remove="cicd/**/*.sql" />
+    <Build Remove="PostDeployment/**/*.sql" />
+    <PostDeploy Include="PostDeployment/PostDeployment.sql" />
   </ItemGroup>
 
   <Target Name="BeforeBuild">
