@@ -1,10 +1,11 @@
-CREATE TABLE [dbo].[Departments] (
-    [DepartmentID]   INT IDENTITY(1,1) NOT NULL,
-    [DepartmentCode] NVARCHAR(10) NULL,
+CREATE TABLE [dbo].[Departments]
+(
+    [DepartmentID] INT IDENTITY(1,1) NOT NULL,
+    [DepartmentCode] NVARCHAR(10),
     [DepartmentName] NVARCHAR(100) NOT NULL,
-    [Budget]         DECIMAL(18,2) NOT NULL DEFAULT 0.00,
-    [IsActive]       BIT NOT NULL DEFAULT 1,
-    [CreatedAt]      DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    PRIMARY KEY CLUSTERED ([DepartmentID] ASC)
+    [Budget] DECIMAL(18,2) NOT NULL DEFAULT 0.00,
+    [IsActive] BIT NOT NULL DEFAULT 1,
+    [CreatedAt] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    PRIMARY KEY CLUSTERED ([DepartmentCode] ASC),
 );
 GO
