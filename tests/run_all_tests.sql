@@ -49,6 +49,12 @@ BEGIN TRY
     IF OBJECT_ID('sales.GetCustomerOrderSummary', 'P') IS NULL SET @MissingObjects += 'SP:sales.GetCustomerOrderSummary, ';
 
     -- PROD schema
+    IF OBJECT_ID('prod.EmployeeDummy', 'U') IS NULL SET @MissingObjects += 'Table:prod.EmployeeDummy, ';
+    IF OBJECT_ID('prod.person', 'U') IS NULL SET @MissingObjects += 'Table:prod.person, ';
+    IF OBJECT_ID('prod.Departments', 'U') IS NULL SET @MissingObjects += 'Table:prod.Departments, ';
+    IF OBJECT_ID('prod.Projects', 'U') IS NULL SET @MissingObjects += 'Table:prod.Projects, ';
+    IF OBJECT_ID('prod.SchemaEvolutionDemo', 'U') IS NULL SET @MissingObjects += 'Table:prod.SchemaEvolutionDemo, ';
+    IF OBJECT_ID('prod.AuditLog', 'U') IS NULL SET @MissingObjects += 'Table:prod.AuditLog, ';
     IF OBJECT_ID('prod.AuditSummary', 'U') IS NULL SET @MissingObjects += 'Table:prod.AuditSummary, ';
     IF OBJECT_ID('prod.Configuration', 'U') IS NULL SET @MissingObjects += 'Table:prod.Configuration, ';
     IF OBJECT_ID('prod.vw_ProductionHealth', 'V') IS NULL SET @MissingObjects += 'View:prod.vw_ProductionHealth, ';
