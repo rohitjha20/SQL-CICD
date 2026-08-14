@@ -1,14 +1,13 @@
-name: SQL Database CI/CD — Dev to Prod Promotion
+name: SQL CI/CD — Production Release
 
 on:
   push:
     branches:
       - main
-      - dev
   workflow_dispatch:
 
 jobs:
-  # ─── 1. BUILD & PACKAGE ARTIFACT (Runs on all branches) ───────
+  # ─── 1. BUILD & PACKAGE ARTIFACT ──────────────────────────────
   build:
     name: 🔨 Build DACPAC Artifact
     runs-on: ubuntu-latest
@@ -66,7 +65,7 @@ jobs:
           path: bin/Release/cicd.dacpac
           retention-days: 30
 
-  # ─── 2. DEPLOY TO DEV (Runs automatically on dev & main) ───────
+  # ─── 2. DEPLOY TO DEV (Pre-prod validation) ───────────────────
   deploy-dev:
     name: 🟢 Deploy to Dev
     needs: build
@@ -84,7 +83,7 @@ jobs:
 
       - name: Publish DACPAC to Dev Database
         run: |
-          echo "🚀 Deploying DACPAC to Development Environment..."
+          echo "🚀 Validating DACPAC against Dev..."
           sqlpackage \
             /Action:Publish \
             /SourceFile:"./cicd.dacpac" \
@@ -93,11 +92,10 @@ jobs:
             /p:GenerateSmartDefaults=True \
             /p:DropObjectsNotInSource=True
 
-  # ─── 3. PROMOTE TO PROD (Only on main branch + Approval Gate) ─
+  # ─── 3. PROMOTE TO PROD (After Dev + Approval) ────────────────
   deploy-prod:
     name: 🔴 Promote to Production
     needs: deploy-dev
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
     steps:
