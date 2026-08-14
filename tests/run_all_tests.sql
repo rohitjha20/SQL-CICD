@@ -32,6 +32,9 @@ BEGIN TRY
     IF OBJECT_ID('dbo.person', 'U') IS NULL SET @MissingObjects += 'Table:person, ';
     IF OBJECT_ID('dbo.SchemaEvolutionDemo', 'U') IS NULL SET @MissingObjects += 'Table:SchemaEvolutionDemo, ';
     IF OBJECT_ID('dbo.AuditLog', 'U') IS NULL SET @MissingObjects += 'Table:AuditLog, ';
+    IF OBJECT_ID('dbo.Departments', 'U') IS NULL SET @MissingObjects += 'Table:Departments, ';
+    IF OBJECT_ID('dbo.Projects', 'U') IS NULL SET @MissingObjects += 'Table:Projects, ';
+    IF OBJECT_ID('dbo.ProjectAssignments', 'U') IS NULL SET @MissingObjects += 'Table:ProjectAssignments, ';
     IF OBJECT_ID('dbo.vw_ActiveEmployees', 'V') IS NULL SET @MissingObjects += 'View:vw_ActiveEmployees, ';
     IF OBJECT_ID('dbo.GetEmployeeDetails', 'P') IS NULL SET @MissingObjects += 'SP:GetEmployeeDetails, ';
     IF OBJECT_ID('dbo.fn_CalculateBonus', 'FN') IS NULL SET @MissingObjects += 'ScalarFunc:fn_CalculateBonus, ';
@@ -41,7 +44,7 @@ BEGIN TRY
 
     IF @MissingObjects = ''
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-        VALUES (1, 'Schema', 'Verify All Database Objects Exist', 'PASSED', 'All 4 tables, 1 view, 1 SP, 2 functions, and 1 trigger exist.');
+        VALUES (1, 'Schema', 'Verify All Database Objects Exist', 'PASSED', 'All 7 tables, 1 view, 1 SP, 2 functions, and 1 trigger exist.');
     ELSE
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
         VALUES (1, 'Schema', 'Verify All Database Objects Exist', 'FAILED', 'Missing objects: ' + @MissingObjects);
@@ -110,16 +113,18 @@ END CATCH;
 BEGIN TRY
     DECLARE @PersonCount INT = 0;
     DECLARE @EmployeeCount INT = 0;
+    DECLARE @DeptCount INT = 0;
 
     SELECT @PersonCount = COUNT(*) FROM dbo.person;
     SELECT @EmployeeCount = COUNT(*) FROM dbo.EmployeeDummy;
+    SELECT @DeptCount = COUNT(*) FROM dbo.Departments;
 
-    IF @PersonCount >= 3 AND @EmployeeCount >= 3
+    IF @PersonCount >= 3 AND @EmployeeCount >= 3 AND @DeptCount >= 3
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-        VALUES (4, 'PostDeploy', 'Seed Data Verification', 'PASSED', 'dbo.person count=' + CAST(@PersonCount AS VARCHAR) + ', dbo.EmployeeDummy count=' + CAST(@EmployeeCount AS VARCHAR));
+        VALUES (4, 'PostDeploy', 'Seed Data Verification', 'PASSED', 'person=' + CAST(@PersonCount AS VARCHAR) + ', EmployeeDummy=' + CAST(@EmployeeCount AS VARCHAR) + ', Departments=' + CAST(@DeptCount AS VARCHAR));
     ELSE
         INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
-        VALUES (4, 'PostDeploy', 'Seed Data Verification', 'FAILED', 'Insufficient seed data: person=' + CAST(@PersonCount AS VARCHAR) + ', EmployeeDummy=' + CAST(@EmployeeCount AS VARCHAR));
+        VALUES (4, 'PostDeploy', 'Seed Data Verification', 'FAILED', 'Insufficient seed data: person=' + CAST(@PersonCount AS VARCHAR) + ', EmployeeDummy=' + CAST(@EmployeeCount AS VARCHAR) + ', Dept=' + CAST(@DeptCount AS VARCHAR));
 END TRY
 BEGIN CATCH
     INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
@@ -329,6 +334,51 @@ BEGIN CATCH
     INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
     VALUES (10, 'StoredProcedures', 'GetEmployeeDetails Procedure Execution', 'FAILED', ERROR_MESSAGE());
     DELETE FROM dbo.SchemaEvolutionDemo WHERE [ID] = 9009;
+END CATCH;
+
+-- ==============================================================================
+-- TEST 11: Foreign Key Constraint Enforcement (Projects -> Departments)
+-- ==============================================================================
+BEGIN TRY
+    -- Attempt to insert a project referencing a non-existent DepartmentID (-999)
+    INSERT INTO dbo.Projects ([ProjectName], [DepartmentID], [StartDate], [ProjectStatus])
+    VALUES ('Invalid FK Project', -999, '2026-01-01', 'Planning');
+
+    INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
+    VALUES (11, 'ForeignKeys', 'FK_Projects_Departments Enforcement', 'FAILED', 'Invalid FK was unexpectedly accepted.');
+    DELETE FROM dbo.Projects WHERE [ProjectName] = 'Invalid FK Project';
+END TRY
+BEGIN CATCH
+    IF ERROR_NUMBER() = 547 -- Foreign Key violation error code
+        INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
+        VALUES (11, 'ForeignKeys', 'FK_Projects_Departments Enforcement', 'PASSED', 'Foreign key constraint correctly rejected invalid DepartmentID (Error 547).');
+    ELSE
+        INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
+        VALUES (11, 'ForeignKeys', 'FK_Projects_Departments Enforcement', 'FAILED', 'Unexpected error: ' + ERROR_MESSAGE());
+END CATCH;
+
+-- ==============================================================================
+-- TEST 12: Date Order CHECK Constraint (Projects EndDate >= StartDate)
+-- ==============================================================================
+BEGIN TRY
+    DECLARE @ValidDeptID INT = (SELECT TOP 1 [DepartmentID] FROM dbo.Departments);
+    IF @ValidDeptID IS NULL SET @ValidDeptID = 1;
+
+    -- Attempt inserting EndDate before StartDate (must fail)
+    INSERT INTO dbo.Projects ([ProjectName], [DepartmentID], [StartDate], [EndDate], [ProjectStatus])
+    VALUES ('Invalid Date Project', @ValidDeptID, '2026-06-01', '2026-01-01', 'Planning');
+
+    INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
+    VALUES (12, 'Constraints', 'CK_Projects_DateOrder Enforcement', 'FAILED', 'EndDate < StartDate was unexpectedly accepted.');
+    DELETE FROM dbo.Projects WHERE [ProjectName] = 'Invalid Date Project';
+END TRY
+BEGIN CATCH
+    IF ERROR_NUMBER() = 547 -- CHECK constraint violation
+        INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
+        VALUES (12, 'Constraints', 'CK_Projects_DateOrder Enforcement', 'PASSED', 'Date order CHECK constraint correctly rejected EndDate < StartDate (Error 547).');
+    ELSE
+        INSERT INTO #TestResults (TestNumber, Component, TestName, Status, Details)
+        VALUES (12, 'Constraints', 'CK_Projects_DateOrder Enforcement', 'FAILED', 'Unexpected error: ' + ERROR_MESSAGE());
 END CATCH;
 
 -- ==============================================================================

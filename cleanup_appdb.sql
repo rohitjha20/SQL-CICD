@@ -57,7 +57,28 @@ BEGIN
 END
 GO
 
--- 6. Drop Tables
+-- 6. Drop Tables in Reverse Dependency Order
+IF OBJECT_ID('dbo.ProjectAssignments', 'U') IS NOT NULL
+BEGIN
+    DROP TABLE [dbo].[ProjectAssignments];
+    PRINT 'Dropped TABLE: dbo.ProjectAssignments';
+END
+GO
+
+IF OBJECT_ID('dbo.Projects', 'U') IS NOT NULL
+BEGIN
+    DROP TABLE [dbo].[Projects];
+    PRINT 'Dropped TABLE: dbo.Projects';
+END
+GO
+
+IF OBJECT_ID('dbo.Departments', 'U') IS NOT NULL
+BEGIN
+    DROP TABLE [dbo].[Departments];
+    PRINT 'Dropped TABLE: dbo.Departments';
+END
+GO
+
 IF OBJECT_ID('dbo.AuditLog', 'U') IS NOT NULL
 BEGIN
     DROP TABLE [dbo].[AuditLog];
