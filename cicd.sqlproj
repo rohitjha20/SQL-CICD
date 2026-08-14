@@ -1,27 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-
 <Project DefaultTargets="Build">
-
   <Sdk Name="Microsoft.Build.Sql" Version="2.2.0" />
-
   <PropertyGroup>
     <Name>cicd</Name>
-    <ProjectGuid>{F64078A6-8885-41B6-88F2-CFC1AADC22D5}</ProjectGuid>
     <DSP>Microsoft.Data.Tools.Schema.Sql.SqlAzureV12DatabaseSchemaProvider</DSP>
     <ModelCollation>1033, CI</ModelCollation>
     <TargetFramework>netstandard2.1</TargetFramework>
     <SqlServerVersion>SqlAzureV12</SqlServerVersion>
   </PropertyGroup>
-
   <ItemGroup>
     <Build Remove=".github/**/*.sql" />
     <Build Remove="cicd/**/*.sql" />
     <Build Remove="PostDeployment/**/*.sql" />
+    <Build Remove="cleanup_appdb.sql" />
     <PostDeploy Include="PostDeployment/PostDeployment.sql" />
   </ItemGroup>
-
   <Target Name="BeforeBuild">
-    <Delete Files="$(BaseIntermediateOutputPath)\project.assets.json" />
+    <Delete Files="$(BaseIntermediateOutputPath)/project.assets.json" />
   </Target>
-
 </Project>
