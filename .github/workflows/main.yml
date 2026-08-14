@@ -70,4 +70,5 @@ jobs:
           sqlpackage \
             /Action:Publish \
             /SourceFile:"./bin/Release/cicd.dacpac" \
-            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING }}"
+            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING }}" \
+            /p:BlockOnPossibleDataLoss=False

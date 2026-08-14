@@ -11,7 +11,8 @@ CREATE TABLE [dbo].[SchemaEvolutionDemo]
     [Salary] DECIMAL(18, 2) NULL,
 
     -- 3. Constraint Condition (CHECK and DEFAULT)
-    [Status] NVARCHAR(20) NOT NULL DEFAULT 'Active' CHECK ([Status] IN ('Active', 'Inactive', 'Pending')),
+    [Status] NVARCHAR(20) NOT NULL DEFAULT 'Active',
+    CONSTRAINT [CK_SchemaEvolutionDemo_Status] CHECK ([Status] IN ('Active', 'Inactive', 'Pending')),
 
     [CreatedAt] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
 );
