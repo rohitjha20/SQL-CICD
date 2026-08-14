@@ -72,4 +72,5 @@ jobs:
             /SourceFile:"./bin/Release/cicd.dacpac" \
             /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING }}" \
             /p:BlockOnPossibleDataLoss=False \
-            /p:GenerateSmartDefaults=True
+            /p:GenerateSmartDefaults=True \
+            /p:DropObjectsNotInSource=True
