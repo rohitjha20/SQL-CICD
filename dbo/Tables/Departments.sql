@@ -6,6 +6,6 @@ CREATE TABLE [dbo].[Departments]
     [Budget] DECIMAL(18,2) NOT NULL DEFAULT 0.00,
     [IsActive] BIT NOT NULL DEFAULT 1,
     [CreatedAt] DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    PRIMARY KEY CLUSTERED ([DepartmentCode] ASC)
+    PRIMARY KEY CLUSTERED ([DepartmentID] ASC)
 );
 GO
