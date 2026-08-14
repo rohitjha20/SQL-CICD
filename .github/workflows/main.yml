@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - main
+      - dev
   workflow_dispatch:
 
 jobs:
-  # ─── 1. BUILD & PACKAGE ARTIFACT ──────────────────────────────
+  # ─── 1. BUILD & PACKAGE ARTIFACT (Runs on all branches) ───────
   build:
     name: 🔨 Build DACPAC Artifact
     runs-on: ubuntu-latest
@@ -65,7 +66,7 @@ jobs:
           path: bin/Release/cicd.dacpac
           retention-days: 30
 
-  # ─── 2. DEPLOY TO DEV ─────────────────────────────────────────
+  # ─── 2. DEPLOY TO DEV (Runs automatically on dev & main) ───────
   deploy-dev:
     name: 🟢 Deploy to Dev
     needs: build
@@ -83,6 +84,7 @@ jobs:
 
       - name: Publish DACPAC to Dev Database
         run: |
+          echo "🚀 Deploying DACPAC to Development Environment..."
           sqlpackage \
             /Action:Publish \
             /SourceFile:"./cicd.dacpac" \
@@ -91,11 +93,13 @@ jobs:
             /p:GenerateSmartDefaults=True \
             /p:DropObjectsNotInSource=True
 
-  # ─── 3. PROMOTE TO PROD ───────────────────────────────────────
+  # ─── 3. PROMOTE TO PROD (Only on main branch + Approval Gate) ─
   deploy-prod:
     name: 🔴 Promote to Production
     needs: deploy-dev
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - name: 📥 Download EXACT DACPAC from Build
         uses: actions/download-artifact@v4
@@ -109,6 +113,7 @@ jobs:
 
       - name: Publish DACPAC to Production Database
         run: |
+          echo "🛡️ Deploying Approved DACPAC to Production Environment..."
           sqlpackage \
             /Action:Publish \
             /SourceFile:"./cicd.dacpac" \
