@@ -35,7 +35,6 @@ BEGIN TRY
     IF OBJECT_ID('dbo.AuditLog', 'U') IS NULL SET @MissingObjects += 'Table:dbo.AuditLog, ';
     IF OBJECT_ID('dbo.Departments', 'U') IS NULL SET @MissingObjects += 'Table:dbo.Departments, ';
     IF OBJECT_ID('dbo.Projects', 'U') IS NULL SET @MissingObjects += 'Table:dbo.Projects, ';
-    IF OBJECT_ID('dbo.ProjectAssignments', 'U') IS NULL SET @MissingObjects += 'Table:dbo.ProjectAssignments, ';
     IF OBJECT_ID('dbo.vw_ActiveEmployees', 'V') IS NULL SET @MissingObjects += 'View:dbo.vw_ActiveEmployees, ';
     IF OBJECT_ID('dbo.GetEmployeeDetails', 'P') IS NULL SET @MissingObjects += 'SP:dbo.GetEmployeeDetails, ';
     IF OBJECT_ID('dbo.fn_CalculateBonus', 'FN') IS NULL SET @MissingObjects += 'ScalarFunc:dbo.fn_CalculateBonus, ';
@@ -50,6 +49,12 @@ BEGIN TRY
     IF OBJECT_ID('sales.GetCustomerOrderSummary', 'P') IS NULL SET @MissingObjects += 'SP:sales.GetCustomerOrderSummary, ';
 
     -- PROD schema
+    IF OBJECT_ID('prod.EmployeeDummy', 'U') IS NULL SET @MissingObjects += 'Table:prod.EmployeeDummy, ';
+    IF OBJECT_ID('prod.person', 'U') IS NULL SET @MissingObjects += 'Table:prod.person, ';
+    IF OBJECT_ID('prod.Departments', 'U') IS NULL SET @MissingObjects += 'Table:prod.Departments, ';
+    IF OBJECT_ID('prod.Projects', 'U') IS NULL SET @MissingObjects += 'Table:prod.Projects, ';
+    IF OBJECT_ID('prod.SchemaEvolutionDemo', 'U') IS NULL SET @MissingObjects += 'Table:prod.SchemaEvolutionDemo, ';
+    IF OBJECT_ID('prod.AuditLog', 'U') IS NULL SET @MissingObjects += 'Table:prod.AuditLog, ';
     IF OBJECT_ID('prod.AuditSummary', 'U') IS NULL SET @MissingObjects += 'Table:prod.AuditSummary, ';
     IF OBJECT_ID('prod.Configuration', 'U') IS NULL SET @MissingObjects += 'Table:prod.Configuration, ';
     IF OBJECT_ID('prod.vw_ProductionHealth', 'V') IS NULL SET @MissingObjects += 'View:prod.vw_ProductionHealth, ';

@@ -1,0 +1,93 @@
+name: SQL CI/CD — Dev Pipeline
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+jobs:
+  # ─── 1. BUILD & PACKAGE ARTIFACT ──────────────────────────────
+  build:
+    name: 🔨 Build DACPAC Artifact
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install SQL Project Template (CLI)
+        run: dotnet new install Microsoft.Build.Sql.Templates
+
+      - name: Generate or Configure .sqlproj via CLI
+        run: |
+          if [ ! -f "cicd.sqlproj" ]; then
+            echo "cicd.sqlproj not found. Creating via dotnet new CLI..."
+            dotnet new sqlproj -n cicd -tp SqlAzureV12
+          fi
+          
+          # Ensure exclusions and post-deployment configuration are set
+          cat << 'EOF' > cicd.sqlproj
+          <?xml version="1.0" encoding="utf-8"?>
+          <Project DefaultTargets="Build">
+            <Sdk Name="Microsoft.Build.Sql" Version="2.2.0" />
+            <PropertyGroup>
+              <Name>cicd</Name>
+              <DSP>Microsoft.Data.Tools.Schema.Sql.SqlAzureV12DatabaseSchemaProvider</DSP>
+              <ModelCollation>1033, CI</ModelCollation>
+              <TargetFramework>netstandard2.1</TargetFramework>
+              <SqlServerVersion>SqlAzureV12</SqlServerVersion>
+            </PropertyGroup>
+            <ItemGroup>
+              <Build Remove=".github/**/*.sql" />
+              <Build Remove="cicd/**/*.sql" />
+              <Build Remove="PostDeployment/**/*.sql" />
+              <Build Remove="cleanup_appdb.sql" />
+              <Build Remove="tests/**/*.sql" />
+              <PostDeploy Include="PostDeployment/PostDeployment.sql" />
+            </ItemGroup>
+            <Target Name="BeforeBuild">
+              <Delete Files="$(BaseIntermediateOutputPath)/project.assets.json" />
+            </Target>
+          </Project>
+          EOF
+
+      - name: Build SQL Project (Compile DACPAC)
+        run: dotnet build cicd.sqlproj --configuration Release
+
+      - name: 📦 Upload DACPAC as Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sql-dacpac-artifact
+          path: bin/Release/cicd.dacpac
+          retention-days: 30
+
+  # ─── 2. DEPLOY TO DEV ─────────────────────────────────────────
+  deploy-dev:
+    name: 🟢 Deploy to Dev
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Download DACPAC Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sql-dacpac-artifact
+
+      - name: Install SqlPackage
+        run: |
+          dotnet tool install --global microsoft.sqlpackage
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Publish DACPAC to Dev Database
+        run: |
+          echo "🚀 Deploying DACPAC to Development Environment..."
+          sqlpackage \
+            /Action:Publish \
+            /SourceFile:"./cicd.dacpac" \
+            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING_DEV || secrets.SQL_CONNECTION_STRING }}" \
+            /p:BlockOnPossibleDataLoss=False \
+            /p:GenerateSmartDefaults=True \
+            /p:DropObjectsNotInSource=True
