@@ -6,10 +6,6 @@ CREATE TABLE [dbo].[ProjectAssignments] (
     [AssignedDate]   DATE NOT NULL DEFAULT CAST(SYSUTCDATETIME() AS DATE),
     [HoursAllocated] INT NOT NULL DEFAULT 40 CHECK ([HoursAllocated] > 0),
     PRIMARY KEY CLUSTERED ([AssignmentID] ASC),
-    CONSTRAINT [FK_Assignments_Projects] FOREIGN KEY ([ProjectID])
-        REFERENCES [dbo].[Projects] ([ProjectID]),
-    CONSTRAINT [FK_Assignments_Employee] FOREIGN KEY ([EmployeeID])
-        REFERENCES [dbo].[EmployeeDummy] ([EmployeeID]),
     CONSTRAINT [UQ_Project_Employee_Assignment] UNIQUE ([ProjectID], [EmployeeID])
 );
 GO
