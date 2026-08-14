@@ -65,37 +65,10 @@ jobs:
           path: bin/Release/cicd.dacpac
           retention-days: 30
 
-  # ─── 2. DEPLOY TO DEV (Pre-prod validation) ───────────────────
-  deploy-dev:
-    name: 🟢 Deploy to Dev
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: 📥 Download DACPAC Artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: sql-dacpac-artifact
-
-      - name: Install SqlPackage
-        run: |
-          dotnet tool install --global microsoft.sqlpackage
-          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
-
-      - name: Publish DACPAC to Dev Database
-        run: |
-          echo "🚀 Validating DACPAC against Dev..."
-          sqlpackage \
-            /Action:Publish \
-            /SourceFile:"./cicd.dacpac" \
-            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING_DEV || secrets.SQL_CONNECTION_STRING }}" \
-            /p:BlockOnPossibleDataLoss=False \
-            /p:GenerateSmartDefaults=True \
-            /p:DropObjectsNotInSource=True
-
-  # ─── 3. PROMOTE TO PROD (After Dev + Approval) ────────────────
+  # ─── 2. PROMOTE TO PROD (Direct to Prod with Approval Gate) ───
   deploy-prod:
     name: 🔴 Promote to Production
-    needs: deploy-dev
+    needs: build
     runs-on: ubuntu-latest
     environment: production
     steps:
