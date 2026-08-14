@@ -35,7 +35,6 @@ BEGIN TRY
     IF OBJECT_ID('dbo.AuditLog', 'U') IS NULL SET @MissingObjects += 'Table:dbo.AuditLog, ';
     IF OBJECT_ID('dbo.Departments', 'U') IS NULL SET @MissingObjects += 'Table:dbo.Departments, ';
     IF OBJECT_ID('dbo.Projects', 'U') IS NULL SET @MissingObjects += 'Table:dbo.Projects, ';
-    IF OBJECT_ID('dbo.ProjectAssignments', 'U') IS NULL SET @MissingObjects += 'Table:dbo.ProjectAssignments, ';
     IF OBJECT_ID('dbo.vw_ActiveEmployees', 'V') IS NULL SET @MissingObjects += 'View:dbo.vw_ActiveEmployees, ';
     IF OBJECT_ID('dbo.GetEmployeeDetails', 'P') IS NULL SET @MissingObjects += 'SP:dbo.GetEmployeeDetails, ';
     IF OBJECT_ID('dbo.fn_CalculateBonus', 'FN') IS NULL SET @MissingObjects += 'ScalarFunc:dbo.fn_CalculateBonus, ';
