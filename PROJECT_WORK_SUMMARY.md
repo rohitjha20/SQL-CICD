@@ -11,8 +11,8 @@
 ## 📑 Table of Contents
 
 1. [Executive Summary](#-1-executive-summary)
-2. [Local Project Structure (Component-Based)](#-2-local-project-structure-component-based)
-3. [All Implemented Database Components](#-3-all-implemented-database-components)
+2. [Local Project Structure (Multi-Schema & Component-Based)](#-2-local-project-structure-multi-schema--component-based)
+3. [All Implemented Database Components (`dbo` & `sales` Schemas)](#-3-all-implemented-database-components-dbo--sales-schemas)
 4. [CI/CD Pipeline Architecture (Ubuntu Runner)](#-4-cicd-pipeline-architecture-ubuntu-runner)
 5. [Key Technical Problems Solved & Schema Evolution Handled](#-5-key-technical-problems-solved--schema-evolution-handled)
 6. [Post-Deployment Data Seeding Orchestration](#-6-post-deployment-data-seeding-orchestration)
@@ -24,26 +24,29 @@
 
 ## 🎯 1. Executive Summary
 
-In this session, we transformed the repository into an **enterprise-grade, 100% CLI-driven Azure SQL Database CI/CD project**. The project is designed to operate without any dependency on Visual Studio or Azure Data Studio IDE extensions, building and deploying declarative database state changes entirely on **Ubuntu Linux GitHub Actions runners**.
+In this session, we transformed the repository into an **enterprise-grade, 100% CLI-driven Multi-Schema Azure SQL Database CI/CD project**. The project is designed to operate without any dependency on Visual Studio or Azure Data Studio IDE extensions, building and deploying declarative database state changes across multiple schemas (`dbo` and `sales`) entirely on **Ubuntu Linux GitHub Actions runners**.
 
 ### Key Accomplishments:
-- ✅ **Component Modularization**: Organized SQL objects into dedicated folders (`Tables`, `Views`, `Functions/Scalar`, `Functions/TableValued`, `Triggers`, `Indexes`, `StoredProcedures`).
+- ✅ **Multi-Schema Modularization**: Deployed both `dbo` and `sales` schemas with dedicated component folders (`Tables`, `Views`, `Functions/Scalar`, `Functions/TableValued`, `Triggers`, `Indexes`, `StoredProcedures`).
 - ✅ **100% CLI Scaffolding**: Automated `.sqlproj` creation via `dotnet new sqlproj` inside the CI runner.
 - ✅ **Ubuntu Linux CI/CD Migration**: Migrated the pipeline from Windows/PowerShell to Ubuntu/Bash with cross-platform path handling.
 - ✅ **Azure SQL Delta Engine**: Configured `SqlPackage` publish parameters (`/p:BlockOnPossibleDataLoss=False`, `/p:GenerateSmartDefaults=True`) to handle agile schema refactoring.
 - ✅ **Automated SQL Test Suite**: Built a transaction-safe, self-reporting 12-test assertion engine.
-- ✅ **Post-Deployment Seeding**: Automated master post-deployment data population for reference tables.
+- ✅ **Post-Deployment Seeding**: Automated master post-deployment data population for reference tables in both `dbo` and `sales` schemas.
 
 ---
 
-## 📁 2. Local Project Structure (Component-Based)
+## 📁 2. Local Project Structure (Multi-Schema & Component-Based)
 
 ```
 SQL-CICD/
 ├── .github/
 │   └── workflows/
 │       └── main.yml                         # Ubuntu GitHub Actions CI/CD Workflow
-├── dbo/
+├── Security/
+│   └── Schemas/
+│       └── Sales.sql                        # CREATE SCHEMA [sales] definition
+├── dbo/                                     # DBO Schema Components
 │   ├── Tables/                              # Table Schema Definitions
 │   │   ├── EmployeeDummy.sql                # Employee table
 │   │   ├── persondetails.sql                # Person reference table
@@ -65,40 +68,54 @@ SQL-CICD/
 │   │   └── IX_EmployeeDummy_Department.sql  # Department lookup index
 │   └── StoredProcedures/                    # Stored Procedures
 │       └── GetEmployeeDetails.sql           # Employee details retrieval procedure
+├── sales/                                   # SALES Schema Components
+│   ├── Tables/
+│   │   ├── Customers.sql                    # Customers table with Unique constraints
+│   │   └── Orders.sql                       # Orders table with status CHECK constraint & Index
+│   ├── Views/
+│   │   └── vw_HighValueOrders.sql           # High-value orders view (Orders + Customers join)
+│   └── StoredProcedures/
+│       └── GetCustomerOrderSummary.sql      # Customer lifetime spend & order metrics procedure
 ├── PostDeployment/                          # Post-Deployment Data Seeding
 │   ├── PostDeployment.sql                   # Master post-deploy orchestrator
 │   ├── Employeedummy.sql                    # Seed data for EmployeeDummy
 │   ├── Persondata.sql                       # Seed data for person
 │   ├── AuditLogSeed.sql                     # Seed placeholder for AuditLog
-│   └── DepartmentSeed.sql                   # Seed data for Departments
+│   ├── DepartmentSeed.sql                   # Seed data for Departments
+│   └── SalesSeed.sql                        # Seed data for sales.Customers & sales.Orders
 ├── tests/                                   # Automated SQL Test Suite
 │   ├── run_all_tests.sql                    # 12 Automated SQL Test Cases (Assertion Engine)
 │   ├── test_runner.sh                       # CLI test execution script
 │   └── TEST_CASES_SPECIFICATION.md          # Test case documentation
-├── cleanup_appdb.sql                        # Database reset utility script
+├── cleanup_appdb.sql                        # Database reset utility script (multi-schema)
 ├── STEP_BY_STEP_IMPLEMENTATION_GUIDE.md     # Step-by-step master guide
 └── README.md
 ```
 
 ---
 
-## 📦 3. All Implemented Database Components
+## 📦 3. All Implemented Database Components (`dbo` & `sales` Schemas)
 
-| Folder | Object Name | Type | Key Features |
-| :--- | :--- | :--- | :--- |
-| `dbo/Tables/` | `dbo.EmployeeDummy` | Table | Identity PK, Contact & Salary fields |
-| `dbo/Tables/` | `dbo.person` | Table | Identity PK, Address & City fields |
-| `dbo/Tables/` | `dbo.SchemaEvolutionDemo` | Table | PK, Unique constraint, CHECK constraint, `SYSUTCDATETIME()` |
-| `dbo/Tables/` | `dbo.AuditLog` | Table | Historical log capturing TableName, Operation, OldValues, NewValues |
-| `dbo/Tables/` | `dbo.Departments` | Table | PK, Budget, IsActive flag |
-| `dbo/Tables/` | `dbo.Projects` | Table | Status CHECK constraint, Date order CHECK (`EndDate >= StartDate`) |
-| `dbo/Tables/` | `dbo.ProjectAssignments` | Table | Composite Unique constraint on `(ProjectID, EmployeeID)` |
-| `dbo/Views/` | `dbo.vw_ActiveEmployees` | View | Exposes only `Status = 'Active'` records from `SchemaEvolutionDemo` |
-| `dbo/Functions/Scalar/` | `dbo.fn_CalculateBonus` | Scalar Func | Computes bonus (Eng: 15%, Prod: 12%, DevOps: 13%, Default: 10%) |
-| `dbo/Functions/TableValued/` | `dbo.fn_GetEmployeesByDepartment` | TVF | Returns inline table for given `@Department` parameter |
-| `dbo/Triggers/` | `dbo.trg_AuditEmployeeChanges` | Trigger | `AFTER INSERT, UPDATE, DELETE` audit trigger writing to `dbo.AuditLog` |
-| `dbo/Indexes/` | `dbo.IX_EmployeeDummy_Department` | Index | Standalone nonclustered index on `EmployeeDummy(Department)` |
-| `dbo/StoredProcedures/` | `dbo.GetEmployeeDetails` | Procedure | Parameterized employee lookup by `@EmployeeID` |
+| Schema | Folder | Object Name | Type | Key Features |
+| :--- | :--- | :--- | :--- | :--- |
+| **`dbo`** | `dbo/Tables/` | `dbo.EmployeeDummy` | Table | Identity PK, Contact & Salary fields |
+| **`dbo`** | `dbo/Tables/` | `dbo.person` | Table | Identity PK, Address & City fields |
+| **`dbo`** | `dbo/Tables/` | `dbo.SchemaEvolutionDemo` | Table | PK, Unique constraint, CHECK constraint, `SYSUTCDATETIME()` |
+| **`dbo`** | `dbo/Tables/` | `dbo.AuditLog` | Table | Historical log capturing TableName, Operation, OldValues, NewValues |
+| **`dbo`** | `dbo/Tables/` | `dbo.Departments` | Table | PK, Budget, IsActive flag |
+| **`dbo`** | `dbo/Tables/` | `dbo.Projects` | Table | Status CHECK constraint, Date order CHECK (`EndDate >= StartDate`) |
+| **`dbo`** | `dbo/Tables/` | `dbo.ProjectAssignments` | Table | Composite Unique constraint on `(ProjectID, EmployeeID)` |
+| **`dbo`** | `dbo/Views/` | `dbo.vw_ActiveEmployees` | View | Exposes only `Status = 'Active'` records from `SchemaEvolutionDemo` |
+| **`dbo`** | `dbo/Functions/Scalar/` | `dbo.fn_CalculateBonus` | Scalar Func | Computes bonus (Eng: 15%, Prod: 12%, DevOps: 13%, Default: 10%) |
+| **`dbo`** | `dbo/Functions/TableValued/` | `dbo.fn_GetEmployeesByDepartment` | TVF | Returns inline table for given `@Department` parameter |
+| **`dbo`** | `dbo/Triggers/` | `dbo.trg_AuditEmployeeChanges` | Trigger | `AFTER INSERT, UPDATE, DELETE` audit trigger writing to `dbo.AuditLog` |
+| **`dbo`** | `dbo/Indexes/` | `dbo.IX_EmployeeDummy_Department` | Index | Standalone nonclustered index on `EmployeeDummy(Department)` |
+| **`dbo`** | `dbo/StoredProcedures/` | `dbo.GetEmployeeDetails` | Procedure | Parameterized employee lookup by `@EmployeeID` |
+| **`sales`** | `Security/Schemas/` | `sales` | Schema | Dedicated schema namespace for sales domain |
+| **`sales`** | `sales/Tables/` | `sales.Customers` | Table | Unique `CustomerCode`, Unique `Email`, `Country` default |
+| **`sales`** | `sales/Tables/` | `sales.Orders` | Table | Unique `OrderNumber`, Status CHECK constraint, Nonclustered index |
+| **`sales`** | `sales/Views/` | `sales.vw_HighValueOrders` | View | Joins `Orders` & `Customers` for orders $\ge 50,000$ |
+| **`sales`** | `sales/StoredProcedures/` | `sales.GetCustomerOrderSummary` | Procedure | Aggregates total orders and lifetime spend by Customer ID |
 
 ---
 
@@ -207,6 +224,7 @@ jobs:
 :r ./Persondata.sql
 :r ./AuditLogSeed.sql
 :r ./DepartmentSeed.sql
+:r ./SalesSeed.sql
 ```
 
 Each script is idempotent using `IF NOT EXISTS (...)` guards to prevent duplicate inserts on subsequent deployments.
@@ -220,7 +238,7 @@ Located in [`tests/run_all_tests.sql`](file:///Users/rohitjha/Documents/Git-mast
 ```text
 Test # | Component        | Test Scenario                                   | What It Asserts
 -------+------------------+-------------------------------------------------+-----------------------------------------------------------
-1      | Schema           | Verify All Database Objects Exist               | Asserts all 7 tables, 1 view, 1 SP, 2 functions, 1 trigger
+1      | Schema           | Verify All Database Objects Exist               | Asserts all tables, views, SPs, functions, and triggers
 2      | Tables           | SchemaEvolutionDemo Default Constraints         | Asserts Status='Active' and CreatedAt defaults
 3      | Constraints      | Negative Test: CHECK Constraint Rejection       | Asserts invalid status 'Suspended' fails (Error 547)
 4      | PostDeploy       | Seed Data Verification                          | Asserts person >= 3, EmployeeDummy >= 3, Departments >= 3
@@ -239,7 +257,7 @@ Test # | Component        | Test Scenario                                   | Wh
 ## 🛠️ 8. Standalone Utilities Created
 
 1. **[`cleanup_appdb.sql`](file:///Users/rohitjha/Documents/Git-master/SQL-CICD/cleanup_appdb.sql)**:
-   - Dependency-ordered database reset script to drop all triggers, views, procedures, functions, and tables in `appdb`.
+   - Dependency-ordered database reset script to drop all triggers, views, procedures, functions, tables, and schemas in `appdb`.
 2. **[`STEP_BY_STEP_IMPLEMENTATION_GUIDE.md`](file:///Users/rohitjha/Documents/Git-master/SQL-CICD/STEP_BY_STEP_IMPLEMENTATION_GUIDE.md)**:
    - Comprehensive technical documentation guide for the entire CLI-based SQL CI/CD setup.
 3. **[`tests/test_runner.sh`](file:///Users/rohitjha/Documents/Git-master/SQL-CICD/tests/test_runner.sh)** & **[`tests/TEST_CASES_SPECIFICATION.md`](file:///Users/rohitjha/Documents/Git-master/SQL-CICD/tests/TEST_CASES_SPECIFICATION.md)**:
