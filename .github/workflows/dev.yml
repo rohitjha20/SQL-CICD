@@ -6,6 +6,15 @@ on:
       - dev
   workflow_dispatch:
 
+# ─── CONCURRENCY CONTROL ─────────────────────────────────────
+# Ensures only ONE pipeline run executes at a time.
+# If Dev-A pushes, then Dev-B pushes before Dev-A's run finishes,
+# Dev-A's run is cancelled and Dev-B's run (with BOTH changes) proceeds.
+# This prevents race conditions and stale DACPAC deployments.
+concurrency:
+  group: sql-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ─── 1. BUILD & PACKAGE ARTIFACT ──────────────────────────────
   build:
@@ -65,11 +74,12 @@ jobs:
           path: bin/Release/cicd.dacpac
           retention-days: 30
 
-  # ─── 2. DEPLOY TO DEV ─────────────────────────────────────────
-  deploy-dev:
-    name: 🟢 Deploy to Dev
+  # ─── 2. DEPLOY TO UAT ──────────────────────────────────────────
+  deploy-uat:
+    name: 🟡 Deploy to UAT
     needs: build
     runs-on: ubuntu-latest
+    environment: UAT
     steps:
       - name: 📥 Download DACPAC Artifact
         uses: actions/download-artifact@v4
@@ -81,13 +91,14 @@ jobs:
           dotnet tool install --global microsoft.sqlpackage
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
-      - name: Publish DACPAC to Dev Database
+      - name: Publish DACPAC to UAT Database
         run: |
           echo "🚀 Deploying DACPAC to Development Environment..."
           sqlpackage \
             /Action:Publish \
             /SourceFile:"./cicd.dacpac" \
-            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING_DEV || secrets.SQL_CONNECTION_STRING }}" \
+            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING_UAT || secrets.SQL_CONNECTION_STRING }}" \
             /p:BlockOnPossibleDataLoss=False \
             /p:GenerateSmartDefaults=True \
             /p:DropObjectsNotInSource=True
+
