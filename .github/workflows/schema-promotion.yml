@@ -1,6 +1,5 @@
-name: 🔄 Schema Promotion — [dbo] → [roh] (Dry Run)
+name: 🔄 Schema Promotion (Dry Run)
 
-# Triggers on PR from uat branch to main
 on:
   pull_request:
     branches:
@@ -9,10 +8,26 @@ on:
       - 'dbo/**'
       - 'PostDeployment/**'
 
+  # Manual trigger with schema dropdown
+  workflow_dispatch:
+    inputs:
+      target_schema:
+        description: 'Target schema to promote to'
+        required: true
+        type: choice
+        options:
+          - roh
+          - cmd
+          - arl
+          # ↑ Add more schemas here
+
 jobs:
   dry-run:
-    name: 🧪 Dry Run — Replace [dbo] → [roh] & Build
+    name: 🧪 Dry Run — [dbo] → [${{ inputs.target_schema || 'roh' }}]
     runs-on: ubuntu-latest
+
+    env:
+      TARGET_SCHEMA: ${{ inputs.target_schema || 'roh' }}    # Default to 'roh' for PR triggers
 
     steps:
       - uses: actions/checkout@v4
@@ -24,28 +39,27 @@ jobs:
       - name: Install SQL Project Template
         run: dotnet new install Microsoft.Build.Sql.Templates
 
-      - name: 🔄 Replace [dbo] → [roh] in all SQL files
+      - name: 🔄 Replace [dbo] → [${{ env.TARGET_SCHEMA }}]
         run: |
           echo "══════════════════════════════════════════"
-          echo "  Schema Replacement: [dbo] → [roh]"
+          echo "  Schema Replacement: [dbo] → [$TARGET_SCHEMA]"
           echo "══════════════════════════════════════════"
 
           find dbo/ PostDeployment/ -name "*.sql" -type f | while read file; do
-            sed -i "s/\[dbo\]/[roh]/g" "$file"
+            sed -i "s/\[dbo\]/[$TARGET_SCHEMA]/g" "$file"
             echo "  ✔ $file"
           done
 
           echo ""
-          echo "── Verification ──"
           echo "Files still containing [dbo]:"
           grep -rl "\[dbo\]" dbo/ PostDeployment/ || echo "  None ✅"
 
       - name: 📝 Create Schema Definition
         run: |
           mkdir -p Security
-          echo "CREATE SCHEMA [roh] AUTHORIZATION [dbo];" > Security/roh.sql
-          echo "GO" >> Security/roh.sql
-          echo "Created Security/roh.sql ✅"
+          echo "CREATE SCHEMA [$TARGET_SCHEMA] AUTHORIZATION [dbo];" > Security/$TARGET_SCHEMA.sql
+          echo "GO" >> Security/$TARGET_SCHEMA.sql
+          echo "Created Security/$TARGET_SCHEMA.sql ✅"
 
       - name: 📝 Generate .sqlproj
         run: |
@@ -81,7 +95,7 @@ jobs:
       - name: 📋 Show Changed SQL (Preview)
         run: |
           echo "══════════════════════════════════════════"
-          echo "  SQL Files After Schema Replacement"
+          echo "  SQL Files — Schema: [$TARGET_SCHEMA]"
           echo "══════════════════════════════════════════"
 
           for file in $(find dbo/ Security/ -name "*.sql" -type f | sort); do
@@ -96,7 +110,7 @@ jobs:
           echo "╔══════════════════════════════════════════════╗"
           echo "║           DRY RUN COMPLETE ✅                 ║"
           echo "╠══════════════════════════════════════════════╣"
-          echo "║  Schema replaced: [dbo] → [roh]              ║"
+          echo "║  Schema replaced: [dbo] → [$TARGET_SCHEMA]   ║"
           echo "║  DACPAC build:    Passed                      ║"
           echo "║  No deployment executed                       ║"
           echo "╚══════════════════════════════════════════════╝"
