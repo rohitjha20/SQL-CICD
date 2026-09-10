@@ -1,0 +1,72 @@
+name: 🔄 Schema Promotion — UAT → ROH (Dry Run)
+
+# Triggers on PR from uat branch to main
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'dbo/**'
+      - 'PostDeployment/**'
+
+jobs:
+  dry-run:
+    name: 🧪 Dry Run — Replace [uat] → [roh] & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install SQL Project Template
+        run: dotnet new install Microsoft.Build.Sql.Templates
+
+      - name: 🔄 Replace [uat] → [roh] in all SQL files
+        run: |
+          echo "══════════════════════════════════════════"
+          echo "  Schema Replacement: [uat] → [roh]"
+          echo "══════════════════════════════════════════"
+
+          find dbo/ PostDeployment/ -name "*.sql" -type f | while read file; do
+            if grep -q "\[uat\]" "$file"; then
+              sed -i "s/\[uat\]/[roh]/g" "$file"
+              echo "  ✔ Changed: $file"
+            fi
+          done
+
+          echo ""
+          echo "── Verification ──"
+          echo "Files still containing [uat]:"
+          grep -rl "\[uat\]" dbo/ PostDeployment/ || echo "  None ✅"
+          echo ""
+          echo "Files now containing [roh]:"
+          grep -rl "\[roh\]" dbo/ PostDeployment/ || echo "  None found"
+
+      - name: 🔨 Build DACPAC (Validate Schema)
+        run: dotnet build cicd.sqlproj --configuration Release
+
+      - name: 📋 Show Changed SQL (Preview)
+        run: |
+          echo "══════════════════════════════════════════"
+          echo "  SQL Files After Schema Replacement"
+          echo "══════════════════════════════════════════"
+
+          for file in $(find dbo/ -name "*.sql" -type f | sort); do
+            echo ""
+            echo "── $file ──"
+            cat "$file"
+          done
+
+      - name: ✅ Dry Run Summary
+        run: |
+          echo ""
+          echo "╔══════════════════════════════════════════════╗"
+          echo "║           DRY RUN COMPLETE ✅                 ║"
+          echo "╠══════════════════════════════════════════════╣"
+          echo "║  Schema replaced: [uat] → [roh]              ║"
+          echo "║  DACPAC build:    Passed                      ║"
+          echo "║  No deployment executed                       ║"
+          echo "╚══════════════════════════════════════════════╝"
