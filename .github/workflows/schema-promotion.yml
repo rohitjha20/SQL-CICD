@@ -54,6 +54,9 @@ jobs:
           echo "Files still containing [dbo]:"
           grep -rl "\[dbo\]" dbo/ PostDeployment/ || echo "  None ✅"
 
+      - name: 🗑️ Remove iteration-2 (avoid duplicates)
+        run: rm -rf iteration-2/
+
       - name: 📝 Create Schema Definition
         run: |
           mkdir -p Security
@@ -64,30 +67,28 @@ jobs:
       - name: 📝 Generate .sqlproj
         run: |
           cat << 'EOF' > cicd.sqlproj
-          <?xml version="1.0" encoding="utf-8"?>
-          <Project DefaultTargets="Build">
-            <Sdk Name="Microsoft.Build.Sql" Version="2.2.0" />
-            <PropertyGroup>
-              <Name>cicd</Name>
-              <DSP>Microsoft.Data.Tools.Schema.Sql.SqlAzureV12DatabaseSchemaProvider</DSP>
-              <ModelCollation>1033, CI</ModelCollation>
-              <TargetFramework>netstandard2.1</TargetFramework>
-              <SqlServerVersion>SqlAzureV12</SqlServerVersion>
-            </PropertyGroup>
-            <ItemGroup>
-              <Build Remove=".github/**/*.sql" />
-              <Build Remove="cicd/**/*.sql" />
-              <Build Remove="iteration-2/**/*.sql" />
-              <Build Remove="PostDeployment/**/*.sql" />
-              <Build Remove="cleanup_appdb.sql" />
-              <Build Remove="tests/**/*.sql" />
-              <PostDeploy Include="PostDeployment/PostDeployment.sql" />
-            </ItemGroup>
-            <Target Name="BeforeBuild">
-              <Delete Files="$(BaseIntermediateOutputPath)/project.assets.json" />
-            </Target>
-          </Project>
-          EOF
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build">
+  <Sdk Name="Microsoft.Build.Sql" Version="2.2.0" />
+  <PropertyGroup>
+    <Name>cicd</Name>
+    <DSP>Microsoft.Data.Tools.Schema.Sql.SqlAzureV12DatabaseSchemaProvider</DSP>
+    <ModelCollation>1033, CI</ModelCollation>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <SqlServerVersion>SqlAzureV12</SqlServerVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Build Remove=".github/**/*.sql" />
+    <Build Remove="PostDeployment/**/*.sql" />
+    <Build Remove="cleanup_appdb.sql" />
+    <Build Remove="tests/**/*.sql" />
+    <PostDeploy Include="PostDeployment/PostDeployment.sql" />
+  </ItemGroup>
+  <Target Name="BeforeBuild">
+    <Delete Files="$(BaseIntermediateOutputPath)/project.assets.json" />
+  </Target>
+</Project>
+EOF
 
       - name: 🔨 Build DACPAC (Validate Schema)
         run: dotnet build cicd.sqlproj --configuration Release
