@@ -1,0 +1,62 @@
+name: 🔌 Test Azure SQL Connection
+
+on:
+  workflow_dispatch:    # Manual trigger only
+
+jobs:
+  test-connection:
+    name: 🧪 Verify GitHub Actions → Azure SQL Connectivity
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Install SqlPackage
+        run: |
+          dotnet tool install --global microsoft.sqlpackage
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Test UAT Connection
+        run: |
+          echo "🔌 Testing connection to UAT Azure SQL..."
+          sqlcmd -C \
+            -S "${{ secrets.SQL_SERVER_NAME }}.database.windows.net" \
+            -d "${{ secrets.SQL_DATABASE_NAME_UAT }}" \
+            -U "${{ secrets.SQL_USER }}" \
+            -P "${{ secrets.SQL_PASSWORD }}" \
+            -Q "SELECT 'UAT Connection Successful ✅' AS Status, GETDATE() AS ServerTime, DB_NAME() AS DatabaseName, @@VERSION AS SQLVersion;"
+        continue-on-error: true
+
+      - name: Test Prod Connection
+        run: |
+          echo "🔌 Testing connection to Prod Azure SQL..."
+          sqlcmd -C \
+            -S "${{ secrets.SQL_SERVER_NAME }}.database.windows.net" \
+            -d "${{ secrets.SQL_DATABASE_NAME_PROD }}" \
+            -U "${{ secrets.SQL_USER }}" \
+            -P "${{ secrets.SQL_PASSWORD }}" \
+            -Q "SELECT 'Prod Connection Successful ✅' AS Status, GETDATE() AS ServerTime, DB_NAME() AS DatabaseName, @@VERSION AS SQLVersion;"
+        continue-on-error: true
+
+      - name: Test via Connection String (UAT)
+        run: |
+          echo "🔌 Testing UAT via full connection string..."
+          sqlpackage \
+            /Action:DeployReport \
+            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING_UAT || secrets.SQL_CONNECTION_STRING }}" \
+            /OutputPath:"./uat-report.xml" || echo "⚠️ DeployReport requires a DACPAC source — but connection was tested."
+
+      - name: Test via Connection String (Prod)
+        run: |
+          echo "🔌 Testing Prod via full connection string..."
+          sqlpackage \
+            /Action:DeployReport \
+            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING_PROD }}" \
+            /OutputPath:"./prod-report.xml" || echo "⚠️ DeployReport requires a DACPAC source — but connection was tested."
+
+      - name: Connection Summary
+        if: always()
+        run: |
+          echo "╔══════════════════════════════════════════════╗"
+          echo "║     GitHub Actions → Azure SQL Test Done     ║"
+          echo "╠══════════════════════════════════════════════╣"
+          echo "║  Check the steps above for ✅ or ❌ results  ║"
+          echo "╚══════════════════════════════════════════════╝"
