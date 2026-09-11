@@ -47,6 +47,8 @@ jobs:
               <Build Remove="PostDeployment/**/*.sql" />
               <Build Remove="cleanup_appdb.sql" />
               <Build Remove="tests/**/*.sql" />
+              <Build Remove="dbup/**" />
+              <Build Remove="migrations/**/*.sql" />
               <PostDeploy Include="PostDeployment/PostDeployment.sql" />
             </ItemGroup>
             <Target Name="BeforeBuild">

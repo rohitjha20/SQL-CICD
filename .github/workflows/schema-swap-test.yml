@@ -122,7 +122,7 @@ jobs:
             '    <Build Remove="tests/**/*.sql" />' \
             '    <Build Remove="iteration-2/**/*.sql" />' \
             '    <Build Remove="migrations/**/*.sql" />' \
-            '    <Build Remove="dbup-runner/**" />' \
+            '    <Build Remove="dbup/**" />' \
             '    <PostDeploy Include="PostDeployment/PostDeployment.sql" />' \
             '  </ItemGroup>' \
             '  <Target Name="BeforeBuild">' \

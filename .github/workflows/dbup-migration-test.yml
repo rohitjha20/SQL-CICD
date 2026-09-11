@@ -6,7 +6,7 @@ on:
     branches:
       - main
     paths:
-      - 'migrations/**'
+      - 'dbup/**'
 
   # ── Manual trigger: admin picks schema from dropdown ──
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
 
       - name: 🔨 Build DbUp Runner
         run: |
-          cd dbup-runner
+          cd dbup/runner
           dotnet restore
           dotnet build --configuration Release
           echo "✅ DbUp runner compiled successfully"
@@ -47,11 +47,11 @@ jobs:
           echo "═══════════════════════════════════════════════"
           echo "  Migration Scripts in Repository"
           echo "═══════════════════════════════════════════════"
-          for f in migrations/*.sql; do
+          for f in dbup/migrations/*.sql; do
             echo "  📄 $(basename "$f")"
           done
           echo ""
-          echo "Total: $(ls migrations/*.sql | wc -l) scripts"
+          echo "Total: $(ls dbup/migrations/*.sql | wc -l) scripts"
 
   # ═══════════════════════════════════════════════════════════
   # JOB 2: Deploy to selected schema (manual trigger only)
@@ -141,7 +141,7 @@ jobs:
           echo "═══════════════════════════════════════════════"
 
           if [ "$SOURCE_SCHEMA" != "$TARGET_SCHEMA" ]; then
-            find migrations/ -name "*.sql" \
+            find dbup/migrations/ -name "*.sql" \
               -exec sed -i "s/\[${SOURCE_SCHEMA}\]/\[${TARGET_SCHEMA}\]/g" {} +
             echo "✅ Schema swapped in all migration files"
           else
@@ -150,7 +150,7 @@ jobs:
 
           echo ""
           echo "── Migration files after swap ──"
-          for f in migrations/*.sql; do
+          for f in dbup/migrations/*.sql; do
             echo "📄 $(basename $f):"
             head -3 "$f"
             echo "---"
@@ -158,14 +158,14 @@ jobs:
 
       - name: 🔨 Build DbUp Runner
         run: |
-          cd dbup-runner
+          cd dbup/runner
           dotnet restore
           dotnet build --configuration Release
           echo "✅ DbUp runner compiled"
 
       - name: "🚀 Run DbUp Migrations → [${{ env.TARGET_SCHEMA }}]"
         run: |
-          cd dbup-runner
+          cd dbup/runner
           dotnet run --configuration Release -- \
             "$CONNECTION_STRING" \
             "../migrations"
@@ -198,7 +198,7 @@ jobs:
 
       - name: 🔁 Re-run DbUp (should skip all — idempotent)
         run: |
-          cd dbup-runner
+          cd dbup/runner
           dotnet run --configuration Release -- \
             "$CONNECTION_STRING" \
             "../migrations"
