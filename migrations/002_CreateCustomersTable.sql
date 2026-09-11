@@ -1,0 +1,7 @@
+CREATE TABLE [uat].[Customers] (
+    [CustomerID]   INT IDENTITY(1,1) NOT NULL,
+    [CustomerName] NVARCHAR(100) NOT NULL,
+    [CreatedAt]    DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    PRIMARY KEY CLUSTERED ([CustomerID] ASC)
+);
+GO
