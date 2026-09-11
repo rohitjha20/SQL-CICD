@@ -9,6 +9,9 @@ on:
         default: 'cmd,arl,roh'
         type: string
 
+# Source schema in SQL files is [uat] (non-prod)
+# This workflow swaps [uat] → target schema for prod validation
+
 jobs:
   # ── Step 1: Parse input into a dynamic matrix ──
   setup:
@@ -52,7 +55,7 @@ jobs:
         run: |
           mkdir -p Security
           cat > Security/${{ matrix.schema }}.sql << 'SQLEOF'
-          CREATE SCHEMA [${{ matrix.schema }}] AUTHORIZATION [uat];
+          CREATE SCHEMA [${{ matrix.schema }}] AUTHORIZATION [dbo];
           GO
           SQLEOF
           echo "✅ Created schema definition: Security/${{ matrix.schema }}.sql"
@@ -83,17 +86,17 @@ jobs:
 
           echo ""
           echo "── Sample: Tables ──"
-          for f in uat/Tables/*.sql; do
+          for f in dbo/Tables/*.sql; do
             [ -f "$f" ] && head -1 "$f" && echo ""
           done
 
           echo "── Sample: StoredProcedures ──"
-          for f in uat/StoredProcedures/*.sql; do
+          for f in dbo/StoredProcedures/*.sql; do
             [ -f "$f" ] && head -1 "$f" && echo ""
           done
 
           echo "── Sample: Views ──"
-          for f in uat/Views/*.sql; do
+          for f in dbo/Views/*.sql; do
             [ -f "$f" ] && head -1 "$f" && echo ""
           done
 
