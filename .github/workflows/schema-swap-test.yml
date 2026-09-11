@@ -1,0 +1,209 @@
+name: 🧪 Schema Swap Test (No DB — Dry Run)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_schemas:
+        description: 'Schemas to test (comma-separated)'
+        required: true
+        default: 'uat,cmd,arl,roh'
+        type: string
+
+jobs:
+  # ── Step 1: Parse input into a dynamic matrix ──
+  setup:
+    name: 📋 Parse Target Schemas
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Build Matrix from Input
+        id: set-matrix
+        run: |
+          INPUT="${{ github.event.inputs.target_schemas }}"
+          # Convert "uat,cmd,arl,roh" → ["uat","cmd","arl","roh"]
+          JSON=$(echo "$INPUT" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | jq -R . | jq -sc .)
+          echo "matrix={\"schema\":$JSON}" >> $GITHUB_OUTPUT
+          echo "📋 Will test schemas: $JSON"
+
+  # ── Step 2: Build DACPAC per schema (parallel) ──
+  build:
+    name: 🔨 Build [${{ matrix.schema }}]
+    needs: setup
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install SQL Project Template
+        run: dotnet new install Microsoft.Build.Sql.Templates
+
+      - name: 🗑️ Remove iteration-2 (avoid duplicates)
+        run: rm -rf iteration-2/
+
+      - name: 📝 Create Schema Definition
+        run: |
+          mkdir -p Security
+          cat > Security/${{ matrix.schema }}.sql << 'SQLEOF'
+          CREATE SCHEMA [${{ matrix.schema }}] AUTHORIZATION [dbo];
+          GO
+          SQLEOF
+          echo "✅ Created schema definition: Security/${{ matrix.schema }}.sql"
+          cat Security/${{ matrix.schema }}.sql
+
+      - name: 🔄 Swap [dbo] → [${{ matrix.schema }}] in all SQL files
+        run: |
+          SOURCE_SCHEMA="dbo"
+          TARGET_SCHEMA="${{ matrix.schema }}"
+
+          echo "═══════════════════════════════════════════════"
+          echo "  Swapping [$SOURCE_SCHEMA] → [$TARGET_SCHEMA]"
+          echo "═══════════════════════════════════════════════"
+
+          # Count files before swap
+          FILE_COUNT=$(find . -name "*.sql" -not -path "./.git/*" -not -path "./Security/*" | wc -l)
+          echo "📁 Found $FILE_COUNT SQL files to process"
+
+          # Perform the swap
+          find . -name "*.sql" \
+            -not -path "./.git/*" \
+            -not -path "./Security/*" \
+            -exec sed -i "s/\[${SOURCE_SCHEMA}\]/\[${TARGET_SCHEMA}\]/g" {} +
+
+          # Count how many files were actually changed
+          CHANGED=$(git diff --name-only | wc -l)
+          echo "✏️  Modified $CHANGED files"
+
+          echo ""
+          echo "── Sample: Tables ──"
+          for f in dbo/Tables/*.sql; do
+            [ -f "$f" ] && head -1 "$f" && echo ""
+          done
+
+          echo "── Sample: StoredProcedures ──"
+          for f in dbo/StoredProcedures/*.sql; do
+            [ -f "$f" ] && head -1 "$f" && echo ""
+          done
+
+          echo "── Sample: Views ──"
+          for f in dbo/Views/*.sql; do
+            [ -f "$f" ] && head -1 "$f" && echo ""
+          done
+
+      - name: 📝 Generate .sqlproj
+        run: |
+          cat > cicd.sqlproj << 'EOF'
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build">
+  <Sdk Name="Microsoft.Build.Sql" Version="2.2.0" />
+  <PropertyGroup>
+    <Name>cicd</Name>
+    <DSP>Microsoft.Data.Tools.Schema.Sql.SqlAzureV12DatabaseSchemaProvider</DSP>
+    <ModelCollation>1033, CI</ModelCollation>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <SqlServerVersion>SqlAzureV12</SqlServerVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Build Remove=".github/**/*.sql" />
+    <Build Remove="cicd/**/*.sql" />
+    <Build Remove="PostDeployment/**/*.sql" />
+    <Build Remove="cleanup_appdb.sql" />
+    <Build Remove="tests/**/*.sql" />
+    <Build Remove="iteration-2/**/*.sql" />
+    <PostDeploy Include="PostDeployment/PostDeployment.sql" />
+  </ItemGroup>
+  <Target Name="BeforeBuild">
+    <Delete Files="$(BaseIntermediateOutputPath)/project.assets.json" />
+  </Target>
+</Project>
+EOF
+          echo "✅ .sqlproj generated (no indentation issues)"
+
+      - name: 🔨 Build DACPAC for [${{ matrix.schema }}]
+        run: |
+          echo "Building DACPAC with schema [${{ matrix.schema }}]..."
+          dotnet build cicd.sqlproj --configuration Release
+          echo ""
+          echo "✅ DACPAC compiled successfully for [${{ matrix.schema }}]"
+          ls -lh bin/Release/cicd.dacpac
+
+      - name: 📊 Verify DACPAC Contents
+        run: |
+          echo "═══════════════════════════════════════════════"
+          echo "  DACPAC Verification: [${{ matrix.schema }}]"
+          echo "═══════════════════════════════════════════════"
+
+          # Install SqlPackage for inspection
+          dotnet tool install --global microsoft.sqlpackage
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+          # Extract and inspect the DACPAC (it's a zip)
+          mkdir -p /tmp/dacpac-inspect
+          unzip -o bin/Release/cicd.dacpac -d /tmp/dacpac-inspect > /dev/null 2>&1
+
+          echo ""
+          echo "📦 DACPAC contents:"
+          ls -la /tmp/dacpac-inspect/
+
+          echo ""
+          echo "── model.xml schema references ──"
+          if [ -f /tmp/dacpac-inspect/model.xml ]; then
+            grep -oP '\[\w+\]\.\[\w+\]' /tmp/dacpac-inspect/model.xml | sort -u | head -30
+            echo ""
+
+            # Verify correct schema is present
+            if grep -q "\[${{ matrix.schema }}\]" /tmp/dacpac-inspect/model.xml; then
+              echo "✅ Schema [${{ matrix.schema }}] found in DACPAC model"
+            else
+              echo "❌ Schema [${{ matrix.schema }}] NOT found in DACPAC model"
+              exit 1
+            fi
+
+            # Verify old schema is NOT present (except if target is dbo)
+            if [ "${{ matrix.schema }}" != "dbo" ]; then
+              if grep -q "\[dbo\]\.\[" /tmp/dacpac-inspect/model.xml; then
+                echo "⚠️  Warning: [dbo] references still found (may be system objects)"
+                grep -oP '\[dbo\]\.\[\w+\]' /tmp/dacpac-inspect/model.xml | sort -u
+              else
+                echo "✅ No residual [dbo] references"
+              fi
+            fi
+          fi
+
+      - name: 🚫 Confirm No Database Connection
+        run: |
+          echo "╔══════════════════════════════════════════════════╗"
+          echo "║  ✅ Schema [${{ matrix.schema }}] — BUILD ONLY  ║"
+          echo "║  🚫 No database was connected                   ║"
+          echo "║  🚫 No secrets were used                        ║"
+          echo "║  🚫 No deployment was attempted                 ║"
+          echo "╚══════════════════════════════════════════════════╝"
+
+  # ── Step 3: Summary ──
+  summary:
+    name: 📊 Test Summary
+    needs: [setup, build]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Results
+        run: |
+          echo "╔══════════════════════════════════════════════════╗"
+          echo "║       Schema Swap Test — Final Report            ║"
+          echo "╠══════════════════════════════════════════════════╣"
+          echo "║  Schemas tested: ${{ github.event.inputs.target_schemas }}"
+          echo "║  Build result:   ${{ needs.build.result }}"
+          echo "║  Database used:  ❌ NONE                        ║"
+          echo "╚══════════════════════════════════════════════════╝"
+          if [ "${{ needs.build.result }}" != "success" ]; then
+            echo "❌ One or more schema builds failed"
+            exit 1
+          fi
+          echo "✅ All schema builds passed"
