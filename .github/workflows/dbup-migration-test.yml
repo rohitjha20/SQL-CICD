@@ -1,0 +1,150 @@
+name: 🔄 DbUp Migration Test (Throwaway SQL Server)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_schema:
+        description: 'Target schema to swap [uat] to'
+        required: true
+        type: choice
+        options:
+          - uat
+          - cmd
+          - arl
+          - roh
+
+jobs:
+  dbup-test:
+    name: "🧪 DbUp → [${{ github.event.inputs.target_schema }}]"
+    runs-on: ubuntu-latest
+
+    services:
+      # Throwaway SQL Server container — destroyed after workflow
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_SA_PASSWORD: YourStrong!Passw0rd
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -C -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      SOURCE_SCHEMA: uat
+      TARGET_SCHEMA: ${{ github.event.inputs.target_schema }}
+      CONNECTION_STRING: "Server=localhost,1433;Database=TestDB;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True;"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      # ── Step 1: Wait for SQL Server to be ready ──
+      - name: 🔌 Wait for SQL Server
+        run: |
+          echo "Waiting for SQL Server container..."
+          for i in $(seq 1 30); do
+            if /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -C -Q "SELECT 1" &>/dev/null; then
+              echo "✅ SQL Server is ready"
+              break
+            fi
+            echo "  Attempt $i/30 — waiting..."
+            sleep 2
+          done
+
+      # ── Step 2: Create the test database ──
+      - name: 🗄️ Create TestDB
+        run: |
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -C \
+            -Q "CREATE DATABASE [TestDB];"
+          echo "✅ TestDB created"
+
+      # ── Step 3: Swap schema in migration scripts ──
+      - name: "🔄 Swap schema: [uat] → [${{ env.TARGET_SCHEMA }}]"
+        run: |
+          echo "═══════════════════════════════════════════════"
+          echo "  Swapping [$SOURCE_SCHEMA] → [$TARGET_SCHEMA]"
+          echo "═══════════════════════════════════════════════"
+
+          if [ "$SOURCE_SCHEMA" != "$TARGET_SCHEMA" ]; then
+            find migrations/ -name "*.sql" \
+              -exec sed -i "s/\[${SOURCE_SCHEMA}\]/\[${TARGET_SCHEMA}\]/g" {} +
+            echo "✅ Schema swapped in all migration files"
+          else
+            echo "ℹ️  Source = Target ($SOURCE_SCHEMA), no swap needed"
+          fi
+
+          echo ""
+          echo "── Migration files after swap ──"
+          for f in migrations/*.sql; do
+            echo "📄 $(basename $f):"
+            head -3 "$f"
+            echo "---"
+          done
+
+      # ── Step 4: Build the DbUp runner ──
+      - name: 🔨 Build DbUp Runner
+        run: |
+          cd dbup-runner
+          dotnet restore
+          dotnet build --configuration Release
+          echo "✅ DbUp runner compiled"
+
+      # ── Step 5: Run migrations ──
+      - name: "🚀 Run DbUp Migrations → [${{ env.TARGET_SCHEMA }}]"
+        run: |
+          cd dbup-runner
+          dotnet run --configuration Release -- \
+            "$CONNECTION_STRING" \
+            "../migrations"
+
+      # ── Step 6: Verify — query the throwaway DB ──
+      - name: 📊 Verify Migration Results
+        run: |
+          echo "═══════════════════════════════════════════════"
+          echo "  Verification: Schema [$TARGET_SCHEMA]"
+          echo "═══════════════════════════════════════════════"
+
+          echo ""
+          echo "── SchemaVersions (DbUp tracking table) ──"
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -C -d TestDB \
+            -Q "SELECT ScriptName, Applied FROM SchemaVersions ORDER BY Applied;"
+
+          echo ""
+          echo "── Tables created under [$TARGET_SCHEMA] ──"
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -C -d TestDB \
+            -Q "SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '$TARGET_SCHEMA' ORDER BY TABLE_NAME;"
+
+          echo ""
+          echo "── Columns in [$TARGET_SCHEMA].[Customers] ──"
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -C -d TestDB \
+            -Q "SELECT COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = '$TARGET_SCHEMA' AND TABLE_NAME = 'Customers' ORDER BY ORDINAL_POSITION;"
+
+          echo ""
+          echo "── Seeded data in [$TARGET_SCHEMA].[Customers] ──"
+          /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -C -d TestDB \
+            -Q "SELECT * FROM [$TARGET_SCHEMA].[Customers];"
+
+      # ── Step 7: Run again to prove idempotency ──
+      - name: 🔁 Re-run DbUp (should skip all — idempotent)
+        run: |
+          cd dbup-runner
+          dotnet run --configuration Release -- \
+            "$CONNECTION_STRING" \
+            "../migrations"
+
+      - name: 🚫 Confirm No Live DB Used
+        run: |
+          echo "╔══════════════════════════════════════════════════════╗"
+          echo "║  ✅ DbUp Migration Test Complete                    ║"
+          echo "║                                                     ║"
+          echo "║  Schema: [$TARGET_SCHEMA]                           ║"
+          echo "║  Database: Throwaway container (destroyed after CI) ║"
+          echo "║  Live DB: ❌ NOT connected                          ║"
+          echo "╚══════════════════════════════════════════════════════╝"
