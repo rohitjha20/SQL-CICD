@@ -1,6 +1,14 @@
 name: 🔄 DbUp Migration Test (Throwaway SQL Server)
 
 on:
+  # ── Auto-trigger: fires after PR merge to main ──
+  push:
+    branches:
+      - main
+    paths:
+      - 'migrations/**'
+
+  # ── Manual trigger: admin picks schema from dropdown ──
   workflow_dispatch:
     inputs:
       target_schema:
@@ -14,12 +22,75 @@ on:
           - roh
 
 jobs:
-  dbup-test:
-    name: "🧪 DbUp → [${{ github.event.inputs.target_schema }}]"
+  # ═══════════════════════════════════════════════════════════
+  # JOB 1: Build & validate (runs on EVERY push/merge)
+  # ═══════════════════════════════════════════════════════════
+  build-validate:
+    name: 🔨 Build & Validate DbUp Runner
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: 🔨 Build DbUp Runner
+        run: |
+          cd dbup-runner
+          dotnet restore
+          dotnet build --configuration Release
+          echo "✅ DbUp runner compiled successfully"
+
+      - name: 📋 List Migration Scripts
+        run: |
+          echo "═══════════════════════════════════════════════"
+          echo "  Migration Scripts in Repository"
+          echo "═══════════════════════════════════════════════"
+          for f in migrations/*.sql; do
+            echo "  📄 $(basename "$f")"
+          done
+          echo ""
+          echo "Total: $(ls migrations/*.sql | wc -l) scripts"
+
+  # ═══════════════════════════════════════════════════════════
+  # JOB 2: Deploy to selected schema (manual trigger only)
+  #   - On workflow_dispatch: uses dropdown selection
+  #   - On push (PR merge): runs all schemas in parallel
+  # ═══════════════════════════════════════════════════════════
+  detect-schemas:
+    name: 📋 Determine Target Schemas
+    needs: build-validate
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      trigger: ${{ steps.set-matrix.outputs.trigger }}
+    steps:
+      - name: Set Schema Matrix
+        id: set-matrix
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Manual trigger — use the dropdown selection
+            SCHEMA="${{ github.event.inputs.target_schema }}"
+            echo "matrix={\"schema\":[\"$SCHEMA\"]}" >> $GITHUB_OUTPUT
+            echo "trigger=manual" >> $GITHUB_OUTPUT
+            echo "🎯 Manual trigger → schema: [$SCHEMA]"
+          else
+            # PR merge — test ALL schemas in parallel
+            echo 'matrix={"schema":["uat","cmd","arl","roh"]}' >> $GITHUB_OUTPUT
+            echo "trigger=auto" >> $GITHUB_OUTPUT
+            echo "🔀 PR merge → testing ALL schemas: [uat, cmd, arl, roh]"
+          fi
+
+  dbup-test:
+    name: "🧪 DbUp → [${{ matrix.schema }}]"
+    needs: detect-schemas
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.detect-schemas.outputs.matrix) }}
 
     services:
-      # Throwaway SQL Server container — destroyed after workflow
       sqlserver:
         image: mcr.microsoft.com/mssql/server:2022-latest
         env:
@@ -35,7 +106,7 @@ jobs:
 
     env:
       SOURCE_SCHEMA: uat
-      TARGET_SCHEMA: ${{ github.event.inputs.target_schema }}
+      TARGET_SCHEMA: ${{ matrix.schema }}
       CONNECTION_STRING: "Server=localhost,1433;Database=TestDB;User Id=sa;Password=YourStrong!Passw0rd;TrustServerCertificate=True;"
 
     steps:
@@ -45,7 +116,6 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      # ── Step 1: Wait for SQL Server to be ready ──
       - name: 🔌 Wait for SQL Server
         run: |
           echo "Waiting for SQL Server container..."
@@ -58,14 +128,12 @@ jobs:
             sleep 2
           done
 
-      # ── Step 2: Create the test database ──
       - name: 🗄️ Create TestDB
         run: |
           /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -C \
             -Q "CREATE DATABASE [TestDB];"
           echo "✅ TestDB created"
 
-      # ── Step 3: Swap schema in migration scripts ──
       - name: "🔄 Swap schema: [uat] → [${{ env.TARGET_SCHEMA }}]"
         run: |
           echo "═══════════════════════════════════════════════"
@@ -88,7 +156,6 @@ jobs:
             echo "---"
           done
 
-      # ── Step 4: Build the DbUp runner ──
       - name: 🔨 Build DbUp Runner
         run: |
           cd dbup-runner
@@ -96,7 +163,6 @@ jobs:
           dotnet build --configuration Release
           echo "✅ DbUp runner compiled"
 
-      # ── Step 5: Run migrations ──
       - name: "🚀 Run DbUp Migrations → [${{ env.TARGET_SCHEMA }}]"
         run: |
           cd dbup-runner
@@ -104,7 +170,6 @@ jobs:
             "$CONNECTION_STRING" \
             "../migrations"
 
-      # ── Step 6: Verify — query the throwaway DB ──
       - name: 📊 Verify Migration Results
         run: |
           echo "═══════════════════════════════════════════════"
@@ -131,7 +196,6 @@ jobs:
           /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'YourStrong!Passw0rd' -C -d TestDB \
             -Q "SELECT * FROM [$TARGET_SCHEMA].[Customers];"
 
-      # ── Step 7: Run again to prove idempotency ──
       - name: 🔁 Re-run DbUp (should skip all — idempotent)
         run: |
           cd dbup-runner
@@ -139,12 +203,35 @@ jobs:
             "$CONNECTION_STRING" \
             "../migrations"
 
-      - name: 🚫 Confirm No Live DB Used
+  # ═══════════════════════════════════════════════════════════
+  # JOB 3: Summary
+  # ═══════════════════════════════════════════════════════════
+  summary:
+    name: 📊 Results
+    needs: [detect-schemas, dbup-test]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Summary
         run: |
           echo "╔══════════════════════════════════════════════════════╗"
-          echo "║  ✅ DbUp Migration Test Complete                    ║"
-          echo "║                                                     ║"
-          echo "║  Schema: [$TARGET_SCHEMA]                           ║"
-          echo "║  Database: Throwaway container (destroyed after CI) ║"
-          echo "║  Live DB: ❌ NOT connected                          ║"
+          echo "║         DbUp Migration Test — Final Report          ║"
+          echo "╠══════════════════════════════════════════════════════╣"
+          echo "║  Trigger:   ${{ needs.detect-schemas.outputs.trigger }}"
+          echo "║  Schemas:   ${{ needs.detect-schemas.outputs.matrix }}"
+          echo "║  Result:    ${{ needs.dbup-test.result }}"
+          echo "║  Live DB:   ❌ NOT used (throwaway container only)  ║"
+          echo "╠══════════════════════════════════════════════════════╣"
+          if [ "${{ needs.detect-schemas.outputs.trigger }}" = "auto" ]; then
+            echo "║  ℹ️  This was triggered by PR merge.                ║"
+            echo "║  To deploy a specific schema, go to:               ║"
+            echo "║  Actions → 🔄 DbUp Migration Test → Run workflow  ║"
+            echo "║  and select the target schema from the dropdown.   ║"
+          else
+            echo "║  ✅ Manual deployment for selected schema complete ║"
+          fi
           echo "╚══════════════════════════════════════════════════════╝"
+
+          if [ "${{ needs.dbup-test.result }}" != "success" ]; then
+            exit 1
+          fi
