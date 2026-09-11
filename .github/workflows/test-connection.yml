@@ -1,62 +1,43 @@
 name: 🔌 Test Azure SQL Connection
 
 on:
-  workflow_dispatch:    # Manual trigger only
+  workflow_dispatch:
 
 jobs:
   test-connection:
-    name: 🧪 Verify GitHub Actions → Azure SQL Connectivity
+    name: 🧪 Test Connectivity
     runs-on: ubuntu-latest
 
     steps:
+      - name: Azure Login (Client Secret)
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}    # ← JSON from az ad sp create-for-rbac
+
+      - name: 🔑 Get Secrets from Key Vault
+        uses: azure/get-keyvault-secrets@v1
+        with:
+          keyvault: ${{ secrets.AZURE_KEYVAULT_NAME }}
+          secrets: 'sql-connection-string-uat, sql-connection-string-prod'
+        id: kv
+
       - name: Install SqlPackage
         run: |
           dotnet tool install --global microsoft.sqlpackage
           echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
-      - name: Test UAT Connection
+      - name: ✅ Test UAT
         run: |
-          echo "🔌 Testing connection to UAT Azure SQL..."
-          sqlcmd -C \
-            -S "${{ secrets.SQL_SERVER_NAME }}.database.windows.net" \
-            -d "${{ secrets.SQL_DATABASE_NAME_UAT }}" \
-            -U "${{ secrets.SQL_USER }}" \
-            -P "${{ secrets.SQL_PASSWORD }}" \
-            -Q "SELECT 'UAT Connection Successful ✅' AS Status, GETDATE() AS ServerTime, DB_NAME() AS DatabaseName, @@VERSION AS SQLVersion;"
-        continue-on-error: true
+          sqlpackage /Action:Version \
+            /TargetConnectionString:"${{ steps.kv.outputs.sql-connection-string-uat }}"
+          echo "UAT Connected ✅"
 
-      - name: Test Prod Connection
+      - name: ✅ Test Prod
         run: |
-          echo "🔌 Testing connection to Prod Azure SQL..."
-          sqlcmd -C \
-            -S "${{ secrets.SQL_SERVER_NAME }}.database.windows.net" \
-            -d "${{ secrets.SQL_DATABASE_NAME_PROD }}" \
-            -U "${{ secrets.SQL_USER }}" \
-            -P "${{ secrets.SQL_PASSWORD }}" \
-            -Q "SELECT 'Prod Connection Successful ✅' AS Status, GETDATE() AS ServerTime, DB_NAME() AS DatabaseName, @@VERSION AS SQLVersion;"
-        continue-on-error: true
+          sqlpackage /Action:Version \
+            /TargetConnectionString:"${{ steps.kv.outputs.sql-connection-string-prod }}"
+          echo "Prod Connected ✅"
 
-      - name: Test via Connection String (UAT)
-        run: |
-          echo "🔌 Testing UAT via full connection string..."
-          sqlpackage \
-            /Action:DeployReport \
-            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING_UAT || secrets.SQL_CONNECTION_STRING }}" \
-            /OutputPath:"./uat-report.xml" || echo "⚠️ DeployReport requires a DACPAC source — but connection was tested."
-
-      - name: Test via Connection String (Prod)
-        run: |
-          echo "🔌 Testing Prod via full connection string..."
-          sqlpackage \
-            /Action:DeployReport \
-            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING_PROD }}" \
-            /OutputPath:"./prod-report.xml" || echo "⚠️ DeployReport requires a DACPAC source — but connection was tested."
-
-      - name: Connection Summary
+      - name: Azure Logout
         if: always()
-        run: |
-          echo "╔══════════════════════════════════════════════╗"
-          echo "║     GitHub Actions → Azure SQL Test Done     ║"
-          echo "╠══════════════════════════════════════════════╣"
-          echo "║  Check the steps above for ✅ or ❌ results  ║"
-          echo "╚══════════════════════════════════════════════╝"
+        run: az logout

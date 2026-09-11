@@ -6,7 +6,7 @@ on:
       target_schemas:
         description: 'Schemas to test (comma-separated)'
         required: true
-        default: 'uat,cmd,arl,roh'
+        default: 'cmd,arl,roh'
         type: string
 
 jobs:
@@ -21,7 +21,7 @@ jobs:
         id: set-matrix
         run: |
           INPUT="${{ github.event.inputs.target_schemas }}"
-          # Convert "uat,cmd,arl,roh" → ["uat","cmd","arl","roh"]
+          # Convert "cmd,arl,roh" → ["cmd","arl","roh"]
           JSON=$(echo "$INPUT" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | jq -R . | jq -sc .)
           echo "matrix={\"schema\":$JSON}" >> $GITHUB_OUTPUT
           echo "📋 Will test schemas: $JSON"
@@ -52,15 +52,15 @@ jobs:
         run: |
           mkdir -p Security
           cat > Security/${{ matrix.schema }}.sql << 'SQLEOF'
-          CREATE SCHEMA [${{ matrix.schema }}] AUTHORIZATION [dbo];
+          CREATE SCHEMA [${{ matrix.schema }}] AUTHORIZATION [uat];
           GO
           SQLEOF
           echo "✅ Created schema definition: Security/${{ matrix.schema }}.sql"
           cat Security/${{ matrix.schema }}.sql
 
-      - name: 🔄 Swap [dbo] → [${{ matrix.schema }}] in all SQL files
+      - name: 🔄 Swap [uat] → [${{ matrix.schema }}] in all SQL files
         run: |
-          SOURCE_SCHEMA="dbo"
+          SOURCE_SCHEMA="uat"
           TARGET_SCHEMA="${{ matrix.schema }}"
 
           echo "═══════════════════════════════════════════════"
@@ -83,17 +83,17 @@ jobs:
 
           echo ""
           echo "── Sample: Tables ──"
-          for f in dbo/Tables/*.sql; do
+          for f in uat/Tables/*.sql; do
             [ -f "$f" ] && head -1 "$f" && echo ""
           done
 
           echo "── Sample: StoredProcedures ──"
-          for f in dbo/StoredProcedures/*.sql; do
+          for f in uat/StoredProcedures/*.sql; do
             [ -f "$f" ] && head -1 "$f" && echo ""
           done
 
           echo "── Sample: Views ──"
-          for f in dbo/Views/*.sql; do
+          for f in uat/Views/*.sql; do
             [ -f "$f" ] && head -1 "$f" && echo ""
           done
 
@@ -167,13 +167,13 @@ jobs:
               exit 1
             fi
 
-            # Verify old schema is NOT present (except if target is dbo)
-            if [ "${{ matrix.schema }}" != "dbo" ]; then
-              if grep -q "\[dbo\]\.\[" /tmp/dacpac-inspect/model.xml; then
-                echo "⚠️  Warning: [dbo] references still found (may be system objects)"
-                grep -oP '\[dbo\]\.\[\w+\]' /tmp/dacpac-inspect/model.xml | sort -u
+            # Verify old schema is NOT present (except if target is uat)
+            if [ "${{ matrix.schema }}" != "uat" ]; then
+              if grep -q "\[uat\]\.\[" /tmp/dacpac-inspect/model.xml; then
+                echo "⚠️  Warning: [uat] references still found (may be system objects)"
+                grep -oP '\[uat\]\.\[\w+\]' /tmp/dacpac-inspect/model.xml | sort -u
               else
-                echo "✅ No residual [dbo] references"
+                echo "✅ No residual [uat] references"
               fi
             fi
           fi
