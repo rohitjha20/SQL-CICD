@@ -1,0 +1,170 @@
+name: 🛡️ Schema Guardrail — Environment Alignment Check
+
+# Runs on every PR to validate that SQL schema references
+# match the target environment (branch).
+#
+# Rules:
+#   PR → dev     : Only [uat] schema allowed
+#   PR → main    : Only production schemas allowed ([roh], [moh], [cmd], [arl], etc.)
+#                  [uat] is FORBIDDEN in production
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths:
+      - '**/*.sql'
+
+jobs:
+  schema-guardrail:
+    name: 🛡️ Schema Alignment Check
+    runs-on: ubuntu-latest
+
+    env:
+      # ── Configure allowed schemas per environment ──
+      # Add new production schemas here as they are created
+      UAT_ALLOWED_SCHEMAS: "uat"
+      PROD_ALLOWED_SCHEMAS: "roh,moh,cmd,arl"
+      # dbo is always allowed (system default schema)
+      SYSTEM_SCHEMAS: "dbo,sys,INFORMATION_SCHEMA"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Need full history for diff
+
+      - name: 📋 Identify Changed SQL Files
+        id: changed
+        run: |
+          # Get SQL files changed in this PR
+          CHANGED_SQL=$(git diff --name-only --diff-filter=ACMR \
+            ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
+            -- '*.sql' | grep -v '.github/' || true)
+
+          if [ -z "$CHANGED_SQL" ]; then
+            echo "ℹ️  No SQL files changed in this PR"
+            echo "has_sql=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "has_sql=true" >> $GITHUB_OUTPUT
+
+          echo "═══════════════════════════════════════════════"
+          echo "  Changed SQL Files"
+          echo "═══════════════════════════════════════════════"
+          echo "$CHANGED_SQL" | while read f; do
+            echo "  📄 $f"
+          done
+
+          # Save to file for next step
+          echo "$CHANGED_SQL" > /tmp/changed_sql_files.txt
+          FILE_COUNT=$(echo "$CHANGED_SQL" | wc -l)
+          echo "count=$FILE_COUNT" >> $GITHUB_OUTPUT
+
+      - name: 🔍 Detect Schema References
+        if: steps.changed.outputs.has_sql == 'true'
+        id: detect
+        run: |
+          TARGET_BRANCH="${{ github.event.pull_request.base.ref }}"
+
+          echo "═══════════════════════════════════════════════"
+          echo "  Target Branch: $TARGET_BRANCH"
+          echo "═══════════════════════════════════════════════"
+
+          # Determine which schemas are allowed based on target branch
+          if [ "$TARGET_BRANCH" = "dev" ]; then
+            ENVIRONMENT="UAT"
+            ALLOWED="$UAT_ALLOWED_SCHEMAS"
+            FORBIDDEN="$PROD_ALLOWED_SCHEMAS"
+          elif [ "$TARGET_BRANCH" = "main" ]; then
+            ENVIRONMENT="PRODUCTION"
+            ALLOWED="$PROD_ALLOWED_SCHEMAS"
+            FORBIDDEN="$UAT_ALLOWED_SCHEMAS"
+          else
+            echo "⚠️  Unknown target branch: $TARGET_BRANCH — skipping check"
+            exit 0
+          fi
+
+          echo "🏷️  Environment: $ENVIRONMENT"
+          echo "✅ Allowed schemas: [$ALLOWED]"
+          echo "❌ Forbidden schemas: [$FORBIDDEN]"
+          echo ""
+
+          # Build regex patterns
+          # Convert "roh,moh,cmd,arl" → "\[roh\]|\[moh\]|\[cmd\]|\[arl\]"
+          FORBIDDEN_PATTERN=$(echo "$FORBIDDEN" | tr ',' '\n' | sed 's/.*$/\\[&\\]/' | tr '\n' '|' | sed 's/|$//')
+          ALLOWED_PATTERN=$(echo "$ALLOWED" | tr ',' '\n' | sed 's/.*$/\\[&\\]/' | tr '\n' '|' | sed 's/|$//')
+
+          VIOLATIONS=0
+          VIOLATION_DETAILS=""
+
+          while IFS= read -r file; do
+            [ -f "$file" ] || continue
+
+            # Search for forbidden schema references (case-insensitive)
+            FOUND=$(grep -niE "$FORBIDDEN_PATTERN" "$file" 2>/dev/null || true)
+
+            if [ -n "$FOUND" ]; then
+              VIOLATIONS=$((VIOLATIONS + 1))
+              echo "❌ VIOLATION: $file"
+              echo "$FOUND" | while IFS= read -r line; do
+                echo "   ⚠️  $line"
+              done
+              echo ""
+              VIOLATION_DETAILS="${VIOLATION_DETAILS}\n❌ ${file}"
+            else
+              echo "✅ OK: $file"
+            fi
+          done < /tmp/changed_sql_files.txt
+
+          echo ""
+          echo "violations=$VIOLATIONS" >> $GITHUB_OUTPUT
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+          echo "allowed=$ALLOWED" >> $GITHUB_OUTPUT
+          echo "forbidden=$FORBIDDEN" >> $GITHUB_OUTPUT
+
+      - name: 🛡️ Enforce Guardrail
+        if: steps.changed.outputs.has_sql == 'true'
+        run: |
+          VIOLATIONS="${{ steps.detect.outputs.violations }}"
+          ENVIRONMENT="${{ steps.detect.outputs.environment }}"
+          ALLOWED="${{ steps.detect.outputs.allowed }}"
+          FORBIDDEN="${{ steps.detect.outputs.forbidden }}"
+
+          echo ""
+          if [ "$VIOLATIONS" -gt 0 ]; then
+            echo "╔══════════════════════════════════════════════════════════╗"
+            echo "║  ❌  SCHEMA GUARDRAIL FAILED                           ║"
+            echo "╠══════════════════════════════════════════════════════════╣"
+            echo "║  Environment:       $ENVIRONMENT"
+            echo "║  Allowed schemas:   [$ALLOWED]"
+            echo "║  Forbidden schemas: [$FORBIDDEN]"
+            echo "║  Files violating:   $VIOLATIONS"
+            echo "╠══════════════════════════════════════════════════════════╣"
+            echo "║                                                        ║"
+            if [ "$ENVIRONMENT" = "UAT" ]; then
+              echo "║  Your SQL files reference production schemas           ║"
+              echo "║  ([$FORBIDDEN]) but this PR targets the dev branch.   ║"
+              echo "║                                                        ║"
+              echo "║  Fix: Replace production schema references with [uat] ║"
+            else
+              echo "║  Your SQL files reference [uat] schema but this PR    ║"
+              echo "║  targets the main (production) branch.                ║"
+              echo "║                                                        ║"
+              echo "║  Fix: Replace [uat] with the correct production       ║"
+              echo "║  schema ([roh], [moh], [cmd], or [arl])               ║"
+            fi
+            echo "║                                                        ║"
+            echo "╚══════════════════════════════════════════════════════════╝"
+            exit 1
+          else
+            echo "╔══════════════════════════════════════════════════════════╗"
+            echo "║  ✅  SCHEMA GUARDRAIL PASSED                           ║"
+            echo "╠══════════════════════════════════════════════════════════╣"
+            echo "║  Environment:     $ENVIRONMENT"
+            echo "║  Allowed schemas: [$ALLOWED]"
+            echo "║  Files checked:   ${{ steps.changed.outputs.count }}"
+            echo "║  Violations:      0"
+            echo "╚══════════════════════════════════════════════════════════╝"
+          fi
