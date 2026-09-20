@@ -1,4 +1,4 @@
-CREATE TABLE [dbo].[EmployeeDummy]
+CREATE TABLE [prod].[EmployeeDummy]
 (
     [EmployeeID]   INT IDENTITY (1, 1) NOT NULL,
     [EmployeeName] NVARCHAR (100)  NOT NULL,

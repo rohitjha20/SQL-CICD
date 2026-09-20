@@ -1,0 +1,267 @@
+name: 🛡️ Schema Guardrail — Environment Alignment Check
+
+# Validates TWO things on every PR:
+#
+# CHECK 1 — FOLDER ↔ SCHEMA alignment (always enforced):
+#   UAT/  folder → Only [uat] schema allowed
+#   Prod/ folder → Only production schemas allowed ([roh], [moh], [cmd], [arl])
+#
+# CHECK 2 — FOLDER ↔ BRANCH alignment (environment enforcement):
+#   PR → dev  : Only UAT/ folder changes allowed, Prod/ changes BLOCKED
+#   PR → main : Only Prod/ folder changes allowed, UAT/ changes BLOCKED
+#
+# No database connection — pure file scan.
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - main
+    paths:
+      - '**/*.sql'
+
+jobs:
+  schema-guardrail:
+    name: 🛡️ Schema Alignment Check
+    runs-on: ubuntu-latest
+
+    env:
+      # ── Allowed schemas per folder ──
+      UAT_SCHEMAS: "uat"
+      PROD_SCHEMAS: "roh,moh,cmd,arl"
+      # System schemas — always allowed everywhere
+      SYSTEM_SCHEMAS: "dbo,sys,INFORMATION_SCHEMA"
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📋 Identify Changed SQL Files
+        id: changed
+        run: |
+          CHANGED_SQL=$(git diff --name-only --diff-filter=ACMR \
+            ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }} \
+            -- '*.sql' | grep -v '.github/' || true)
+
+          if [ -z "$CHANGED_SQL" ]; then
+            echo "ℹ️  No SQL files changed in this PR"
+            echo "has_sql=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "has_sql=true" >> $GITHUB_OUTPUT
+          echo "$CHANGED_SQL" > /tmp/changed_sql_files.txt
+
+          echo "═══════════════════════════════════════════════"
+          echo "  Changed SQL Files in PR"
+          echo "═══════════════════════════════════════════════"
+          echo "$CHANGED_SQL" | while read f; do
+            echo "  📄 $f"
+          done
+
+      - name: 🔍 Check Folder ↔ Schema + Folder ↔ Branch Alignment
+        if: steps.changed.outputs.has_sql == 'true'
+        id: check
+        run: |
+          TARGET_BRANCH="${{ github.event.pull_request.base.ref }}"
+          SCHEMA_VIOLATIONS=0
+          ENV_VIOLATIONS=0
+          CHECKED=0
+
+          echo "═══════════════════════════════════════════════"
+          echo "  Target Branch: $TARGET_BRANCH"
+          echo "═══════════════════════════════════════════════"
+
+          # Determine environment from branch
+          if [ "$TARGET_BRANCH" = "dev" ]; then
+            ENVIRONMENT="UAT"
+            ALLOWED_FOLDER="UAT"
+            BLOCKED_FOLDER="Prod"
+          elif [ "$TARGET_BRANCH" = "main" ]; then
+            ENVIRONMENT="PRODUCTION"
+            ALLOWED_FOLDER="Prod"
+            BLOCKED_FOLDER="UAT"
+          fi
+
+          echo "🏷️  Environment: $ENVIRONMENT"
+          echo "✅ Allowed folder: $ALLOWED_FOLDER/"
+          echo "🚫 Blocked folder: $BLOCKED_FOLDER/"
+          echo ""
+
+          # Build regex patterns
+          PROD_PATTERN=$(echo "$PROD_SCHEMAS" | tr ',' '\n' | sed 's/.*$/\\[&\\]/' | tr '\n' '|' | sed 's/|$//')
+          UAT_PATTERN=$(echo "$UAT_SCHEMAS" | tr ',' '\n' | sed 's/.*$/\\[&\\]/' | tr '\n' '|' | sed 's/|$//')
+
+          while IFS= read -r file; do
+            [ -f "$file" ] || continue
+            CHECKED=$((CHECKED + 1))
+
+            # ── Determine folder ──
+            FOLDER=""
+            if echo "$file" | grep -qiE "^UAT/"; then
+              FOLDER="UAT"
+              FORBIDDEN_PATTERN="$PROD_PATTERN"
+              ALLOWED_SCHEMAS="$UAT_SCHEMAS"
+            elif echo "$file" | grep -qiE "^(Prod|prod)/"; then
+              FOLDER="PROD"
+              FORBIDDEN_PATTERN="$UAT_PATTERN"
+              ALLOWED_SCHEMAS="$PROD_SCHEMAS"
+            elif echo "$file" | grep -qiE "^dbup/"; then
+              FOLDER="DBUP"
+              if [ "$TARGET_BRANCH" = "main" ]; then
+                FORBIDDEN_PATTERN="$UAT_PATTERN"
+                ALLOWED_SCHEMAS="$PROD_SCHEMAS"
+              else
+                FORBIDDEN_PATTERN="$PROD_PATTERN"
+                ALLOWED_SCHEMAS="$UAT_SCHEMAS"
+              fi
+            else
+              echo "ℹ️  SKIP: $file (not in UAT/ or Prod/)"
+              continue
+            fi
+
+            HAS_ERROR=false
+
+            # ── CHECK 1: Schema ↔ Folder alignment ──
+            if [ "$FOLDER" != "DBUP" ]; then
+              FOUND=$(grep -niE "$FORBIDDEN_PATTERN" "$file" 2>/dev/null || true)
+              if [ -n "$FOUND" ]; then
+                SCHEMA_VIOLATIONS=$((SCHEMA_VIOLATIONS + 1))
+                HAS_ERROR=true
+                echo "❌ SCHEMA VIOLATION [$FOLDER]: $file"
+                echo "   ┌──────────────────────────────────────────"
+                echo "$FOUND" | while IFS= read -r match; do
+                  LINE_NUM=$(echo "$match" | cut -d: -f1)
+                  LINE_CONTENT=$(echo "$match" | cut -d: -f2-)
+                  # Extract the wrong schema name from [wrong_schema]
+                  WRONG_SCHEMA=$(echo "$LINE_CONTENT" | grep -oiE '\[('"$(echo "$FORBIDDEN" | tr ',' '|')"')\]' | head -1 | tr -d '[]')
+                  echo "   │ Line $LINE_NUM: $LINE_CONTENT"
+                  echo "   │"
+                  echo "   │ ⛔ Found:    [$WRONG_SCHEMA]"
+                  echo "   │ ✅ Expected: [$ALLOWED_SCHEMAS]"
+                  echo "   │"
+                  echo "   │ 🔧 Fix: Change [$WRONG_SCHEMA] → [$(echo $ALLOWED_SCHEMAS | cut -d, -f1)]"
+                  echo "   │    sed -i 's/\\[$WRONG_SCHEMA\\]/\\[$(echo $ALLOWED_SCHEMAS | cut -d, -f1)\\]/g' $file"
+                  echo "   │"
+                done
+                echo "   └──────────────────────────────────────────"
+                echo ""
+              fi
+            fi
+
+            # ── CHECK 2: Folder ↔ Branch alignment ──
+            if [ "$FOLDER" = "UAT" ] && [ "$TARGET_BRANCH" = "main" ]; then
+              ENV_VIOLATIONS=$((ENV_VIOLATIONS + 1))
+              HAS_ERROR=true
+              echo "❌ ENVIRONMENT VIOLATION: $file"
+              echo "   ┌──────────────────────────────────────────"
+              echo "   │ This file is in UAT/ folder but the PR targets main (production)"
+              echo "   │"
+              echo "   │ 🔧 Fix options:"
+              echo "   │   Option 1: Remove this file from the PR"
+              echo "   │     git reset HEAD $file"
+              echo "   │"
+              echo "   │   Option 2: Move UAT/ changes to a separate PR → dev"
+              echo "   │     git checkout -b feature/uat-changes"
+              echo "   │     git push origin feature/uat-changes"
+              echo "   │     # Then create PR: feature/uat-changes → dev"
+              echo "   └──────────────────────────────────────────"
+              echo ""
+            elif [ "$FOLDER" = "PROD" ] && [ "$TARGET_BRANCH" = "dev" ]; then
+              ENV_VIOLATIONS=$((ENV_VIOLATIONS + 1))
+              HAS_ERROR=true
+              echo "❌ ENVIRONMENT VIOLATION: $file"
+              echo "   ┌──────────────────────────────────────────"
+              echo "   │ This file is in Prod/ folder but the PR targets dev (UAT)"
+              echo "   │"
+              echo "   │ 🔧 Fix options:"
+              echo "   │   Option 1: Remove this file from the PR"
+              echo "   │     git reset HEAD $file"
+              echo "   │"
+              echo "   │   Option 2: Move Prod/ changes to a separate PR → main"
+              echo "   │     git checkout -b feature/prod-changes"
+              echo "   │     git push origin feature/prod-changes"
+              echo "   │     # Then create PR: feature/prod-changes → main"
+              echo "   └──────────────────────────────────────────"
+              echo ""
+            fi
+
+            if [ "$HAS_ERROR" = false ]; then
+              echo "✅ OK [$FOLDER]: $file"
+            fi
+            echo ""
+
+          done < /tmp/changed_sql_files.txt
+
+          TOTAL_VIOLATIONS=$((SCHEMA_VIOLATIONS + ENV_VIOLATIONS))
+          echo "schema_violations=$SCHEMA_VIOLATIONS" >> $GITHUB_OUTPUT
+          echo "env_violations=$ENV_VIOLATIONS" >> $GITHUB_OUTPUT
+          echo "total_violations=$TOTAL_VIOLATIONS" >> $GITHUB_OUTPUT
+          echo "checked=$CHECKED" >> $GITHUB_OUTPUT
+          echo "environment=$ENVIRONMENT" >> $GITHUB_OUTPUT
+
+      - name: 🛡️ Enforce Guardrail
+        if: steps.changed.outputs.has_sql == 'true'
+        run: |
+          SCHEMA_V="${{ steps.check.outputs.schema_violations }}"
+          ENV_V="${{ steps.check.outputs.env_violations }}"
+          TOTAL="${{ steps.check.outputs.total_violations }}"
+          CHECKED="${{ steps.check.outputs.checked }}"
+          ENV="${{ steps.check.outputs.environment }}"
+          TARGET="${{ github.event.pull_request.base.ref }}"
+
+          echo ""
+          if [ "$TOTAL" -gt 0 ]; then
+            echo "╔══════════════════════════════════════════════════════════════╗"
+            echo "║  ❌  SCHEMA GUARDRAIL FAILED                               ║"
+            echo "╠══════════════════════════════════════════════════════════════╣"
+            echo "║  Target branch:       $TARGET ($ENV)"
+            echo "║  Files checked:       $CHECKED"
+            echo "║  Schema violations:   $SCHEMA_V"
+            echo "║  Environment violations: $ENV_V"
+            echo "╠══════════════════════════════════════════════════════════════╣"
+            echo "║                                                            ║"
+            echo "║  RULES:                                                    ║"
+            echo "║  ┌──────────────────────────────────────────────────────┐   ║"
+            echo "║  │ CHECK 1: Schema ↔ Folder                           │   ║"
+            echo "║  │  • UAT/ folder  → Only [uat] schema                │   ║"
+            echo "║  │  • Prod/ folder → Only [roh],[moh],[cmd],[arl]     │   ║"
+            echo "║  ├──────────────────────────────────────────────────────┤   ║"
+            echo "║  │ CHECK 2: Folder ↔ Branch                           │   ║"
+            echo "║  │  • PR → dev  → Only UAT/ folder allowed            │   ║"
+            echo "║  │  • PR → main → Only Prod/ folder allowed           │   ║"
+            echo "║  └──────────────────────────────────────────────────────┘   ║"
+            echo "║                                                            ║"
+            if [ "$ENV_V" -gt 0 ]; then
+              echo "║  FIX (Environment):                                      ║"
+              if [ "$TARGET" = "dev" ]; then
+                echo "║  Remove Prod/ folder changes from this PR.             ║"
+                echo "║  Prod/ changes should go in a separate PR → main.      ║"
+              else
+                echo "║  Remove UAT/ folder changes from this PR.              ║"
+                echo "║  UAT/ changes should go in a separate PR → dev.        ║"
+              fi
+            fi
+            if [ "$SCHEMA_V" -gt 0 ]; then
+              echo "║                                                          ║"
+              echo "║  FIX (Schema):                                           ║"
+              echo "║  Replace schema references to match the folder.          ║"
+              echo "║  UAT/ → [uat]  |  Prod/ → [roh],[moh],[cmd],[arl]       ║"
+            fi
+            echo "║                                                            ║"
+            echo "╚══════════════════════════════════════════════════════════════╝"
+            exit 1
+          else
+            echo "╔══════════════════════════════════════════════════════════════╗"
+            echo "║  ✅  SCHEMA GUARDRAIL PASSED                               ║"
+            echo "╠══════════════════════════════════════════════════════════════╣"
+            echo "║  Target branch:       $TARGET ($ENV)"
+            echo "║  Files checked:       $CHECKED"
+            echo "║  Schema violations:   0"
+            echo "║  Environment violations: 0"
+            echo "║                                                            ║"
+            echo "║  ✅ All schemas match their folders                        ║"
+            echo "║  ✅ All files belong to the correct environment            ║"
+            echo "╚══════════════════════════════════════════════════════════════╝"
+          fi

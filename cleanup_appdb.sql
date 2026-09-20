@@ -86,97 +86,38 @@ BEGIN
 END
 GO
 
--- 6. Drop Tables
-IF OBJECT_ID('prod.AuditSummary', 'U') IS NOT NULL
-BEGIN
-    DROP TABLE [prod].[AuditSummary];
-    PRINT 'Dropped TABLE: prod.AuditSummary';
-END
+-- 6. Drop Tables (PROD Schema)
+IF OBJECT_ID('prod.AuditSummary', 'U') IS NOT NULL DROP TABLE [prod].[AuditSummary];
+IF OBJECT_ID('prod.Configuration', 'U') IS NOT NULL DROP TABLE [prod].[Configuration];
+IF OBJECT_ID('prod.Projects', 'U') IS NOT NULL DROP TABLE [prod].[Projects];
+IF OBJECT_ID('prod.Departments', 'U') IS NOT NULL DROP TABLE [prod].[Departments];
+IF OBJECT_ID('prod.AuditLog', 'U') IS NOT NULL DROP TABLE [prod].[AuditLog];
+IF OBJECT_ID('prod.SchemaEvolutionDemo', 'U') IS NOT NULL DROP TABLE [prod].[SchemaEvolutionDemo];
+IF OBJECT_ID('prod.person', 'U') IS NOT NULL DROP TABLE [prod].[person];
+IF OBJECT_ID('prod.EmployeeDummy', 'U') IS NOT NULL DROP TABLE [prod].[EmployeeDummy];
+PRINT 'Dropped all prod schema tables.';
 GO
 
-IF OBJECT_ID('prod.Configuration', 'U') IS NOT NULL
-BEGIN
-    DROP TABLE [prod].[Configuration];
-    PRINT 'Dropped TABLE: prod.Configuration';
-END
+-- 6b. Drop Tables (SALES Schema)
+IF OBJECT_ID('sales.Orders', 'U') IS NOT NULL DROP TABLE [sales].[Orders];
+IF OBJECT_ID('sales.Customers', 'U') IS NOT NULL DROP TABLE [sales].[Customers];
+PRINT 'Dropped all sales schema tables.';
 GO
 
-IF OBJECT_ID('sales.Orders', 'U') IS NOT NULL
-BEGIN
-    DROP TABLE [sales].[Orders];
-    PRINT 'Dropped TABLE: sales.Orders';
-END
-GO
-
-IF OBJECT_ID('sales.Customers', 'U') IS NOT NULL
-BEGIN
-    DROP TABLE [sales].[Customers];
-    PRINT 'Dropped TABLE: sales.Customers';
-END
-GO
-
-IF OBJECT_ID('dbo.ProjectAssignments', 'U') IS NOT NULL
-BEGIN
-    DROP TABLE [dbo].[ProjectAssignments];
-    PRINT 'Dropped TABLE: dbo.ProjectAssignments';
-END
-GO
-
-IF OBJECT_ID('dbo.Projects', 'U') IS NOT NULL
-BEGIN
-    DROP TABLE [dbo].[Projects];
-    PRINT 'Dropped TABLE: dbo.Projects';
-END
-GO
-
-IF OBJECT_ID('dbo.Departments', 'U') IS NOT NULL
-BEGIN
-    DROP TABLE [dbo].[Departments];
-    PRINT 'Dropped TABLE: dbo.Departments';
-END
-GO
-
-IF OBJECT_ID('dbo.AuditLog', 'U') IS NOT NULL
-BEGIN
-    DROP TABLE [dbo].[AuditLog];
-    PRINT 'Dropped TABLE: dbo.AuditLog';
-END
-GO
-
-IF OBJECT_ID('dbo.SchemaEvolutionDemo', 'U') IS NOT NULL
-BEGIN
-    DROP TABLE [dbo].[SchemaEvolutionDemo];
-    PRINT 'Dropped TABLE: dbo.SchemaEvolutionDemo';
-END
-GO
-
-IF OBJECT_ID('dbo.person', 'U') IS NOT NULL
-BEGIN
-    DROP TABLE [dbo].[person];
-    PRINT 'Dropped TABLE: dbo.person';
-END
-GO
-
-IF OBJECT_ID('dbo.EmployeeDummy', 'U') IS NOT NULL
-BEGIN
-    DROP TABLE [dbo].[EmployeeDummy];
-    PRINT 'Dropped TABLE: dbo.EmployeeDummy';
-END
+-- 6c. Drop Tables (DBO Schema)
+IF OBJECT_ID('dbo.Projects', 'U') IS NOT NULL DROP TABLE [dbo].[Projects];
+IF OBJECT_ID('dbo.Departments', 'U') IS NOT NULL DROP TABLE [dbo].[Departments];
+IF OBJECT_ID('dbo.AuditLog', 'U') IS NOT NULL DROP TABLE [dbo].[AuditLog];
+IF OBJECT_ID('dbo.SchemaEvolutionDemo', 'U') IS NOT NULL DROP TABLE [dbo].[SchemaEvolutionDemo];
+IF OBJECT_ID('dbo.person', 'U') IS NOT NULL DROP TABLE [dbo].[person];
+IF OBJECT_ID('dbo.EmployeeDummy', 'U') IS NOT NULL DROP TABLE [dbo].[EmployeeDummy];
+PRINT 'Dropped all dbo schema tables.';
 GO
 
 -- 7. Drop Schemas
-IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'prod')
-BEGIN
-    DROP SCHEMA [prod];
-    PRINT 'Dropped SCHEMA: prod';
-END
-GO
-
-IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'sales')
-BEGIN
-    DROP SCHEMA [sales];
-    PRINT 'Dropped SCHEMA: sales';
-END
+IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'prod') DROP SCHEMA [prod];
+IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'sales') DROP SCHEMA [sales];
+PRINT 'Dropped schemas: prod, sales';
 GO
 
 PRINT '==============================================================================';

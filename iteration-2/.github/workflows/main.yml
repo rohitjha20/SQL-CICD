@@ -1,0 +1,95 @@
+name: SQL Database CI/CD — UAT to Prod Promotion
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'iteration-2/**'
+  workflow_dispatch:
+
+# ─── CONCURRENCY CONTROL ─────────────────────────────────────
+# Only ONE pipeline run at a time. Newer pushes cancel older runs.
+concurrency:
+  group: sql-deploy-iteration2-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ─── 1. BUILD & PACKAGE ARTIFACT ──────────────────────────────
+  build:
+    name: 🔨 Build DACPAC Artifact
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install SQL Project Template (CLI)
+        run: dotnet new install Microsoft.Build.Sql.Templates
+
+      - name: Build SQL Project (Compile DACPAC)
+        run: dotnet build iteration-2/cicd.sqlproj --configuration Release
+
+      - name: 📦 Upload DACPAC as Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sql-dacpac-iteration2
+          path: iteration-2/bin/Release/cicd.dacpac
+          retention-days: 30
+
+  # ─── 2. DEPLOY TO UAT ──────────────────────────────────────────
+  deploy-uat:
+    name: 🟡 Deploy to UAT
+    needs: build
+    runs-on: ubuntu-latest
+    environment: UAT
+    steps:
+      - name: 📥 Download DACPAC Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sql-dacpac-iteration2
+
+      - name: Install SqlPackage
+        run: |
+          dotnet tool install --global microsoft.sqlpackage
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Publish DACPAC to UAT Database
+        run: |
+          sqlpackage \
+            /Action:Publish \
+            /SourceFile:"./cicd.dacpac" \
+            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING_UAT }}" \
+            /p:BlockOnPossibleDataLoss=False \
+            /p:GenerateSmartDefaults=True \
+            /p:DropObjectsNotInSource=True
+
+  # ─── 3. PROMOTE TO PROD ───────────────────────────────────────
+  deploy-prod:
+    name: 🔴 Promote to Production
+    needs: deploy-uat
+    runs-on: ubuntu-latest
+    environment: Production    # Configure required reviewers in GitHub Settings → Environments
+    steps:
+      - name: 📥 Download EXACT DACPAC from Build
+        uses: actions/download-artifact@v4
+        with:
+          name: sql-dacpac-iteration2
+
+      - name: Install SqlPackage
+        run: |
+          dotnet tool install --global microsoft.sqlpackage
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
+      - name: Publish DACPAC to Production Database
+        run: |
+          sqlpackage \
+            /Action:Publish \
+            /SourceFile:"./cicd.dacpac" \
+            /TargetConnectionString:"${{ secrets.SQL_CONNECTION_STRING_PROD }}" \
+            /p:BlockOnPossibleDataLoss=True \
+            /p:GenerateSmartDefaults=True \
+            /p:DropObjectsNotInSource=True
