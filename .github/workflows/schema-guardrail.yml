@@ -130,11 +130,23 @@ jobs:
                 SCHEMA_VIOLATIONS=$((SCHEMA_VIOLATIONS + 1))
                 HAS_ERROR=true
                 echo "❌ SCHEMA VIOLATION [$FOLDER]: $file"
-                echo "   Expected schemas: [$ALLOWED_SCHEMAS]"
-                echo "   Found forbidden:"
-                echo "$FOUND" | while IFS= read -r line; do
-                  echo "      ⛔ $line"
+                echo "   ┌──────────────────────────────────────────"
+                echo "$FOUND" | while IFS= read -r match; do
+                  LINE_NUM=$(echo "$match" | cut -d: -f1)
+                  LINE_CONTENT=$(echo "$match" | cut -d: -f2-)
+                  # Extract the wrong schema name from [wrong_schema]
+                  WRONG_SCHEMA=$(echo "$LINE_CONTENT" | grep -oiE '\[('"$(echo "$FORBIDDEN" | tr ',' '|')"')\]' | head -1 | tr -d '[]')
+                  echo "   │ Line $LINE_NUM: $LINE_CONTENT"
+                  echo "   │"
+                  echo "   │ ⛔ Found:    [$WRONG_SCHEMA]"
+                  echo "   │ ✅ Expected: [$ALLOWED_SCHEMAS]"
+                  echo "   │"
+                  echo "   │ 🔧 Fix: Change [$WRONG_SCHEMA] → [$(echo $ALLOWED_SCHEMAS | cut -d, -f1)]"
+                  echo "   │    sed -i 's/\\[$WRONG_SCHEMA\\]/\\[$(echo $ALLOWED_SCHEMAS | cut -d, -f1)\\]/g' $file"
+                  echo "   │"
                 done
+                echo "   └──────────────────────────────────────────"
+                echo ""
               fi
             fi
 
@@ -143,14 +155,36 @@ jobs:
               ENV_VIOLATIONS=$((ENV_VIOLATIONS + 1))
               HAS_ERROR=true
               echo "❌ ENVIRONMENT VIOLATION: $file"
-              echo "   UAT/ folder changes are NOT allowed in PR → main (production)"
-              echo "   This file should only be promoted via PR → dev"
+              echo "   ┌──────────────────────────────────────────"
+              echo "   │ This file is in UAT/ folder but the PR targets main (production)"
+              echo "   │"
+              echo "   │ 🔧 Fix options:"
+              echo "   │   Option 1: Remove this file from the PR"
+              echo "   │     git reset HEAD $file"
+              echo "   │"
+              echo "   │   Option 2: Move UAT/ changes to a separate PR → dev"
+              echo "   │     git checkout -b feature/uat-changes"
+              echo "   │     git push origin feature/uat-changes"
+              echo "   │     # Then create PR: feature/uat-changes → dev"
+              echo "   └──────────────────────────────────────────"
+              echo ""
             elif [ "$FOLDER" = "PROD" ] && [ "$TARGET_BRANCH" = "dev" ]; then
               ENV_VIOLATIONS=$((ENV_VIOLATIONS + 1))
               HAS_ERROR=true
               echo "❌ ENVIRONMENT VIOLATION: $file"
-              echo "   Prod/ folder changes are NOT allowed in PR → dev (UAT)"
-              echo "   This file should only be promoted via PR → main"
+              echo "   ┌──────────────────────────────────────────"
+              echo "   │ This file is in Prod/ folder but the PR targets dev (UAT)"
+              echo "   │"
+              echo "   │ 🔧 Fix options:"
+              echo "   │   Option 1: Remove this file from the PR"
+              echo "   │     git reset HEAD $file"
+              echo "   │"
+              echo "   │   Option 2: Move Prod/ changes to a separate PR → main"
+              echo "   │     git checkout -b feature/prod-changes"
+              echo "   │     git push origin feature/prod-changes"
+              echo "   │     # Then create PR: feature/prod-changes → main"
+              echo "   └──────────────────────────────────────────"
+              echo ""
             fi
 
             if [ "$HAS_ERROR" = false ]; then
